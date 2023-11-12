@@ -1,0 +1,3 @@
+<launch>
+	<node name="node_test1" pkg="active_slam" type="node_test1" output="screen" />	
+</launch>
