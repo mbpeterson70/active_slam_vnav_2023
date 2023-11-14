@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+import rospy                          
+from airsim_ros_pkgs.msg import VelCmd
+from airsim_ros_pkgs.msg import CarControls
+
+class CmdPublisher:
+    
+    def __init__(self):
+
+        # get parameters
+        self.car_or_drone = rospy.get_param('~car_or_drone', 'car')
+
+        # define ros publisher
+        if self.car_or_drone == 'car':
+            self.pub = rospy.Publisher('/airsim_node/Car/car_cmd', CarControls, queue_size=10)
+        else:
+            self.pub = rospy.Publisher('/airsim_node/PX4/vel_cmd_body_frame', VelCmd, queue_size=10)
+        
+        # define ros timer
+        self.timer = rospy.Timer(rospy.Duration(0.1), self.cmd_cb)
+        
+    def cmd_cb(self, event):
+
+        if self.car_or_drone == 'car':
+            msg = CarControls()
+            msg.throttle = 0.5
+            msg.steering = 0.0
+            rospy.loginfo("Publishing: [%f, %f]" %(msg.throttle, msg.steering))
+        else:
+            msg = VelCmd()
+            msg.twist.linear.x = 0.0
+            msg.twist.linear.y = 0.0
+            msg.twist.linear.z = -1.0
+            rospy.loginfo("Publishing: [%f, %f, %f]" %(msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z))
+        
+        self.pub.publish(msg)
+
+if __name__ == '__main__':
+    rospy.init_node('cmd_publisher', anonymous=True)
+    cmd_pub = CmdPublisher()
+    rospy.spin()

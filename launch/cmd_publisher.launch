@@ -1,0 +1,9 @@
+<launch>
+
+    <arg name="car_or_drone" default="car" />
+
+	<node name="cmd_publisher" pkg="active_slam" type="cmd_publisher" output="screen">	
+        <param name="car_or_drone" value="$(arg car_or_drone)" />
+    </node>
+    
+</launch>

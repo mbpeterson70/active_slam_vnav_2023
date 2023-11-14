@@ -1,0 +1,5 @@
+<launch>
+
+	<node name="planner_ros_node" pkg="active_slam" type="planner_ros_node" output="screen" />	
+    
+</launch>

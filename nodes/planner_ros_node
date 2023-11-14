@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+import rospy                          
+from active_slam.msg import Map
+from active_slam.grid_map import GridMapper
+from geometry_msgs.msg import PoseStamped
+
+class Planner:
+    
+    def __init__(self):
+
+        # subscribe to the topic /map
+        self.sub_map = rospy.Subscriber('map', Map, self.map_cb)
+        # subscribe to the topic /robot_pose
+        self.sub_robot_pose = rospy.Subscriber('robot_pose', PoseStamped, self.robot_pose_cb)
+        
+        # grid mapper
+        self.grid_mapper = GridMapper()
+
+    # callback function for the topic /map
+    def map_cb(self, msg):
+
+        # update objects' list in grid mapper
+        self.grid_mapper.update_objects(msg.objects)
+
+        # visualize the map 
+        self.grid_mapper.visualize_map()
+    
+    # callback function for the topic /robot_pose
+    def robot_pose_cb(self, msg):
+
+        # update the robot's pose
+        self.grid_mapper.update_robot_pose(msg)
+
+if __name__ == '__main__':
+    rospy.init_node('planner', anonymous=True)
+    planner = Planner()
+    rospy.spin()

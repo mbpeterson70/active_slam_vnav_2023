@@ -3,7 +3,7 @@
 1. Create file `~/Documents/AirSim/settings.json` (example below)
 2. Download environment binary (Linux): [https://github.com/Microsoft/AirSim/releases](https://github.com/Microsoft/AirSim/releases)
    1. After, unzip
-(change this for different environments) Run: ``./AbandonedPark/LinuxNoEditor/AbandonedPark/Binaries/Linux/AbandonedParks -ResX=640 -ResY=480 -windowed``
+(change this for different environments) Run: ``./AbandonedPark/LinuxNoEditor/AbandonedPark/Binaries/Linux/AbandonedPark -ResX=640 -ResY=480 -windowed``
 3. Install ROS wrapper: [https://microsoft.github.io/AirSim/airsim_ros_pkgs/](https://microsoft.github.io/AirSim/airsim_ros_pkgs/)
    1. Once the sim is running, and ros environment is sourced (setup.bash)
    2. `roslaunch airsim_ros_pkgs airsim_node.launch `
@@ -43,3 +43,9 @@ Can look at camera topic using rviz
 }
 ```
 
+# Anybotic elevation_mapping deps
+
+1. install and build `kindr` https://github.com/ANYbotics/kindr
+2. install and catkin build `message_logger` https://github.com/ANYbotics/message_logger
+3. install `point_cloud_io` https://github.com/ANYbotics/point_cloud_io.git
+4. build with `catkin build -DPYTHON_EXECUTABLE=/usr/bin/python3`
