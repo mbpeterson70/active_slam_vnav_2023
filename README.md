@@ -42,10 +42,3 @@ Can look at camera topic using rviz
   }
 }
 ```
-
-# Anybotic elevation_mapping deps
-
-1. install and build `kindr` https://github.com/ANYbotics/kindr
-2. install and catkin build `message_logger` https://github.com/ANYbotics/message_logger
-3. install `point_cloud_io` https://github.com/ANYbotics/point_cloud_io.git
-4. build with `catkin build -DPYTHON_EXECUTABLE=/usr/bin/python3`

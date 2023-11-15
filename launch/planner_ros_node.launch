@@ -1,5 +1,9 @@
 <launch>
 
-	<node name="planner_ros_node" pkg="active_slam" type="planner_ros_node" output="screen" />	
+	<arg name="car_or_drone" default="drone" />
+
+	<node name="planner_ros_node" pkg="active_slam" type="planner_ros_node" output="screen" >
+		<param name="car_or_drone" value="$(arg car_or_drone)" />
+	</node>	
     
 </launch>
