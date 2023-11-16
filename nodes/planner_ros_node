@@ -11,13 +11,14 @@ from nav_msgs.msg import Odometry
 from scipy.spatial.transform import Rotation as Rot
 import airsim
 import threading
+from active_slam.grid_sweeping import planning
+
 
 class Planner:
     
     def __init__(self):
 
         # drone client
-        # note that if you define self.drone_client in the class, you will get IOLoop is already running error
         self.drone_client = airsim.MultirotorClient()
         self.drone_client.confirmConnection()
         self.drone_client.enableApiControl(True)
@@ -36,15 +37,22 @@ class Planner:
         self.robot_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0 , 1.0]
 
         # store goal poses
-        self.goal_poses = [[-10.0, 0.0, -5.0], \
-                           [10.0, 0.0, -5.0], \
-                           [-10.0, 0.0, -5.0], \
-                           [10.0, 0.0, -5.0], \
-                           [0.0, 0.0, -5.0],]
+        AREA_SIZE = 20.0
+        AREA_X = [-AREA_SIZE, AREA_SIZE, AREA_SIZE, -AREA_SIZE, -AREA_SIZE]
+        AREA_Y = [-AREA_SIZE, -AREA_SIZE, AREA_SIZE, AREA_SIZE, -AREA_SIZE]
+        GRID_RES = 2.0
+        goal_pose_x, goal_pose_y = planning(AREA_X, AREA_Y, GRID_RES)
+        goal_pose_z = -30.0
+        self.unexplored_goal_poses = []
+        for i in range(len(goal_pose_x)):
+            self.unexplored_goal_poses.append([goal_pose_x[i], goal_pose_y[i], goal_pose_z])
         self.goal_idx = 0
 
         # store goal pose
         self.goal_pose = [0.0, 0.0, 0.0]
+
+        # tracking parameters
+        self.tracking_vel = 2.0 # [m/s]
 
         # robot take off?
         self.is_robot_take_off = False
@@ -75,7 +83,7 @@ class Planner:
         self.timer_for_replanning = rospy.Timer(rospy.Duration(0.1), self.replanning_cb)
 
         # timer for map_visualizer
-        # self.timer_for_map_visualizer = rospy.Timer(rospy.Duration(1), self.map_visualizer_cb)
+        self.timer_for_map_visualizer = rospy.Timer(rospy.Duration(1.0), self.map_visualizer_cb)
 
         # timer for goal reached checker
         self.timer_for_goal_reached_checker = rospy.Timer(rospy.Duration(0.1), self.goal_reached_checker_cb)
@@ -115,11 +123,13 @@ class Planner:
     # callback function for the replanning timer
     def replanning_cb(self, event):
 
+        # TODO: first, we need to find the waypoint using frontier-based exploration
+
         # second, we pass the goal to the client
         # TODO: there's no collision avoidance here
         print("before replanning_cb")
         self.drone_client_lock.acquire()
-        self.drone_client.moveToPositionAsync(self.goal_pose[0], self.goal_pose[1], self.goal_pose[2], 1).join()
+        self.drone_client.moveToPositionAsync(self.goal_pose[0], self.goal_pose[1], self.goal_pose[2], self.tracking_vel).join()
         self.drone_client_lock.release()
         print("after replanning_cb")
 
@@ -127,7 +137,7 @@ class Planner:
     def map_visualizer_cb(self, event):
 
         # visualize the map 
-        self.grid_mapper.visualize_map()
+        self.grid_mapper.visualize_map(self.unexplored_goal_poses, self.goal_idx)
     
     # callback function for the goal reached checker timer
     def goal_reached_checker_cb(self, event):
@@ -138,15 +148,19 @@ class Planner:
             # calculate the distance between the robot and the goal
             dist = math.sqrt((self.robot_pose[0] - self.goal_pose[0]) ** 2 + (self.robot_pose[1] - self.goal_pose[1]) ** 2 + (self.robot_pose[2] - self.goal_pose[2]) ** 2)
             
-            # if the distance is less than 0.5m, we consider the goal has been reached
-            if dist < 1.0:
+            # if the distance is less than GOAL_THRESHOLD, we consider the goal has been reached
+            GOAL_THRESHOLD = 1.0
+            if dist < GOAL_THRESHOLD:
+
+                # if the goal has been reached, we update the goal
                 self.goal_idx = self.goal_idx + 1
                 
-                # if the goal_idx is out of range, reset it
-                if self.goal_idx >= len(self.goal_poses):
-                    self.goal_idx = 0
+                # if the goal_idx is out of range
+                if self.goal_idx >= len(self.unexplored_goal_poses):
+                    print("all goals reached")
+                    # self.goal_idx = 0 # if we want to start over we can just reset the goal_idx to 0
 
-                self.goal_pose = self.goal_poses[self.goal_idx]
+                self.goal_pose = self.unexplored_goal_poses[self.goal_idx]
                 print("goal reached, new goal: ", self.goal_pose)
                 print("goal_idx: ", self.goal_idx)
         

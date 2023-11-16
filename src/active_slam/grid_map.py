@@ -10,8 +10,8 @@ from scipy.spatial.transform import Rotation as Rot
 from active_slam.msg import Map
 
 # parameters
-EXTEND_AREA = 10.0  # [m] grid map extention length
-COVERAGE_RADIUS = 1.0 # [m] the radius of the coverage area
+EXTEND_AREA = 20.0  # [m] grid map extention length
+COVERAGE_RADIUS = 2.0 # [m] the radius of the coverage area
 PLOT_FIGURE = True
 
 class GridMapper:
@@ -45,6 +45,9 @@ class GridMapper:
         self.occ_grid_map = np.zeros((xw, yw))
         # the unkonwn cells should be covered with gray
         self.occ_grid_map[:, :] = 0.8
+
+        # save image counter
+        self.image_counter = 0
 
     # update the objects' list
     def update_objects(self, map):
@@ -88,7 +91,7 @@ class GridMapper:
                     self.occ_grid_map[xidx, yidx] = 1.0
 
     # visualize a 2D grid map
-    def visualize_map(self):
+    def visualize_map(self, unexplored_goal_poses, goal_idx):
 
         print("visualizing map")
 
@@ -121,8 +124,12 @@ class GridMapper:
                 plt.plot([x - inflated_sizex / 2.0, x - inflated_sizex / 2.0], [y - inflated_sizey / 2.0, y + inflated_sizey / 2.0], "-b", alpha=0.5)
                 plt.plot([x + inflated_sizex / 2.0, x + inflated_sizex / 2.0], [y - inflated_sizey / 2.0, y + inflated_sizey / 2.0], "-b", alpha=0.5)
             
+            # draw the unexplored goal poses
+            for idx in range(goal_idx, len(unexplored_goal_poses)):
+                plt.plot(unexplored_goal_poses[idx][1], unexplored_goal_poses[idx][0], "og", label="unexplored goal poses")
+
             # visualize the grid map
-            plt.imshow(self.occ_grid_map.T, cmap="gray", origin="lower", extent=(self.x_min, self.x_max, self.y_min, self.y_max))
+            plt.imshow(self.occ_grid_map.T, cmap="gray", origin="lower", extent=(self.x_min, self.x_max, self.y_min, self.y_max), alpha=0.2)
 
             # draw the robot
             # Note that the robot is in NED frame, so we need to swap x-y axis
@@ -144,4 +151,7 @@ class GridMapper:
             plt.ylabel("x")
 
             # save the figure
-            plt.savefig('/home/jtorde/data/active_slam/map.png')
+            # fig_name = "/home/jtorde/data/active_slam/map_" + str(self.image_counter) + ".png"
+            fig_name = "/home/jtorde/data/active_slam/map.png"
+            plt.savefig(fig_name)
+            self.image_counter += 1
