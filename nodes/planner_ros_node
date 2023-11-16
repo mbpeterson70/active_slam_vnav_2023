@@ -40,7 +40,7 @@ class Planner:
         AREA_SIZE = 20.0
         AREA_X = [-AREA_SIZE, AREA_SIZE, AREA_SIZE, -AREA_SIZE, -AREA_SIZE]
         AREA_Y = [-AREA_SIZE, -AREA_SIZE, AREA_SIZE, AREA_SIZE, -AREA_SIZE]
-        GRID_RES = 2.0
+        GRID_RES = 4.0
         goal_pose_x, goal_pose_y = planning(AREA_X, AREA_Y, GRID_RES)
         goal_pose_z = -30.0
         self.unexplored_goal_poses = []
@@ -52,7 +52,7 @@ class Planner:
         self.goal_pose = [0.0, 0.0, 0.0]
 
         # tracking parameters
-        self.tracking_vel = 2.0 # [m/s]
+        self.tracking_vel = 1.0 # [m/s]
 
         # robot take off?
         self.is_robot_take_off = False
@@ -87,7 +87,6 @@ class Planner:
 
         # timer for goal reached checker
         self.timer_for_goal_reached_checker = rospy.Timer(rospy.Duration(0.1), self.goal_reached_checker_cb)
-
 
     # callback function for the topic /map
     def map_cb(self, msg):
