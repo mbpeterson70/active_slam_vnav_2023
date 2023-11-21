@@ -2,13 +2,13 @@ import rosbag
 import csv
 
 # Set the path to the ROS bag file
-bag_path = "/home/ankj/data/active_slam_data/vel2_drone_2023-11-15-14-42-46.bag"
+bag_path = "/home/ankj/data/active_slam_data/vel1_alt30m_airsimNH_drone_2023-11-16-16-29-57.bag"
 
 # Set the name of the topic to extract data from
 topic_name = "/airsim_node/Multirotor/imu/Imu"
 
 # Set the path to save the CSV file
-csv_path = "/home/ankj/data/active_slam_data/vel2_drone_2023-11-15-14-42-46_bag.csv"
+csv_path = "/home/ankj/data/active_slam_data/vel1_alt30m_airsimNH_drone_2023-11-16-16-29-57_bag.csv"
 
 # Open the ROS bag file
 bag = rosbag.Bag(bag_path)

@@ -51,7 +51,7 @@ def calculate_delta_pose(prev_pose, acc, gyro, dt):
 
 # Parse IMU data from CSV file 
 imu_data = []
-with open('/home/ankj/data/active_slam_data/vel2_drone_2023-11-15-14-42-46_bag.csv', 'r') as f:
+with open('/home/ankj/data/active_slam_data/vel1_alt30m_airsimNH_drone_2023-11-16-16-29-57_bag.csv', 'r') as f:
   reader = csv.reader(f)
   next(reader)  # skip header row
   for i, row in enumerate(reader, start=2):  # start=2 to account for header row
@@ -72,20 +72,6 @@ acc_x = [data[1][0] for data in imu_data]
 acc_y = [data[1][1] for data in imu_data]
 acc_z = [data[1][2] for data in imu_data]
 
-# plot every 10th point
-timestamps = timestamps[::10]
-acc_x = acc_x[::10]
-acc_y = acc_y[::10]
-acc_z = acc_z[::10]
-fig, axs = plt.subplots(3)
-fig.suptitle('Accelerometer readings over time')
-axs[0].plot(timestamps, acc_x)
-axs[0].set(ylabel='X')
-axs[1].plot(timestamps, acc_y)
-axs[1].set(ylabel='Y')
-axs[2].plot(timestamps, acc_z)
-axs[2].set(xlabel='Time', ylabel='Z')
-
 # Add image file names to list
 image_files = []
 for filename in os.listdir('/home/ankj/data/active_slam_data/BagImages'):
@@ -100,11 +86,11 @@ image_files.sort(key=lambda x: float(os.path.splitext(x)[0]))
 # Create GTSAM graph
 graph = gtsam.NonlinearFactorGraph()
 initial_estimate = gtsam.Values()
-imuNoiseModel = gtsam.noiseModel.Diagonal.Sigmas(np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]))
+imuNoiseModel = gtsam.noiseModel.Diagonal.Sigmas(np.array([0.001, 0.001, 0.001, 0.001, 0.001, 0.001]))
 
 # Add prior factor for first pose
 pose = gtsam.Pose3()
-graph.add(gtsam.PriorFactorPose3(1, pose, gtsam.noiseModel.Diagonal.Sigmas(np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]))))
+graph.add(gtsam.PriorFactorPose3(1, pose, imuNoiseModel))
 initial_estimate.insert(1, pose)
 
 # Define gravity

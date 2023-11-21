@@ -4,7 +4,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 
-bag_file = "/home/ankj/data/active_slam_data/vel2_drone_2023-11-15-14-42-46.bag"
+bag_file = "/home/ankj/data/active_slam_data/vel1_alt30m_airsimNH_drone_2023-11-16-16-29-57.bag"
 image_topic = "/airsim_node/Multirotor/front_center_custom/Scene"
 output_folder = "/home/ankj/data/active_slam_data/BagImages"
 
