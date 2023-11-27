@@ -1,0 +1,5 @@
+#pathToCheckpoint: "./FastSAM/Models/FastSAM-x.pt"
+pathToCheckpoint: "sam_b.pt"
+device: "cuda"
+conf: 0.5
+iou: 0.9
