@@ -125,9 +125,10 @@ class Planner:
 
         # second, we pass the goal to the client
         # TODO: there's no collision avoidance here
+        self.goal_pose = [6.0, 0.0, -2.]
         print("goal_pose: ", self.goal_pose)
         self.drone_client_lock.acquire()
-        self.drone_client.moveToPositionAsync(self.goal_pose[0], self.goal_pose[1], self.goal_pose[2], self.exploration_velocity).join()
+        self.drone_client.moveToPositionAsync(6.0, 0.0, -2., .5).join()
         self.drone_client_lock.release()
 
     # callback function for the map visualizer timer

@@ -1,0 +1,37 @@
+<launch>
+    <arg name="dataset_name" value="AirSim"/>
+    <arg name="online" value="True" />
+
+    <!-- Use CameraInfo topics to get parameters, instead of yaml files -->
+    <arg name="use_online_cam_params" value="false"/>
+
+    <!-- If true, KimeraVIO will enable the LoopClosureDetector module. -->
+    <arg name="use_lcd" value="false"/>
+
+    <arg name="log_output" value="false"/>
+    <arg name="log_gt_data" value="false"/>
+    <arg name="gt_topic" value=""/>
+
+    <!-- Set use_sim_time to true if you use rosbag with clock argument -->
+    <arg name="should_use_sim_time" default="false"/>
+
+    <!-- Frame IDs. These DO NOT match frame id's on the video streams, as the 
+        RealSense and Kimera publish conflicting Tf's -->
+    <arg name="world_frame_id"     value="world"/>
+    <arg name="base_link_frame_id" value="base_link"/>
+    <arg name="map_frame_id"       value="map"/>
+    <arg name="left_cam_frame_id"  value="front_left_custom_optical"/>
+    <arg name="right_cam_frame_id" value="front_right_custom_optical"/>
+
+    <!-- Subscribed Topics -->
+    <arg name="left_cam_topic"          value="/airsim_node/Multirotor/front_left_custom/Scene"/>
+    <arg name="left_cam_info_topic"     value="/airsim_node/Multirotor/front_left_custom/Scene/camera_info"/>
+    <arg name="right_cam_topic"         value="/airsim_node/Multirotor/front_right_custom/Scene"/>
+    <arg name="right_cam_info_topic"    value="/airsim_node/Multirotor/front_right_custom/Scene/camera_info"/>
+    <arg name="imu_topic"               value="/airsim_node/Multirotor/imu/Imu"/>
+
+
+    <!-- Launch actual pipeline -->
+    <include file="$(find kimera_vio_ros)/launch/kimera_vio_ros.launch"
+            pass_all_args="true"/>
+</launch>

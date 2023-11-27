@@ -3,6 +3,7 @@ session_name: airsim
 environment:
   AIRSIM_BIN_PATH: "/home/masonbp/tools/AirSim/environments/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
   ACTIVE_SLAM_VENV: "/home/masonbp/.envs/active_slam/"
+  KIMERA_WS: "/home/masonbp/ws/km_ws"
 
 options:
   default-command: /bin/bash
@@ -17,4 +18,21 @@ windows:
     - roscore
     - $AIRSIM_BIN_PATH -RenderOffScreen #-ResX=640 -ResY=480 -windowed
     - sleep 5; roslaunch airsim_ros_pkgs airsim_node.launch
-    - sleep 5; roslaunch active_slam planner_ros_node.launch
+    - sleep 5; source $KIMERA_WS/devel/setup.bash; roslaunch active_slam kimera.launch
+    - sleep 10; roslaunch active_slam planner_ros_node.launch
+
+# - window name: record
+#   layout: tiled
+
+#   panes:
+#     - rosbag record /airsim_node/Multirotor/odom_local_ned /kimera_vio_ros/odometry -o ~/data/active_slam/
+
+- window name: echo
+  layout: main-vertical
+  focus: true
+  shell_command_before:
+    - sleep 5
+
+  panes:
+    - rostopic echo /kimera_vio_ros/odometry
+    - rostopic echo /airsim_node/Multirotor/odom_local_ned 
