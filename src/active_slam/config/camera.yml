@@ -8,24 +8,18 @@ distortion_parameters:
 
 # todo: fix these
 projection_parameters:
-   fx: 286.339508
-   fy: 286.24
-   #fx: 85.8
-   #fy: 85.8
-   #cx: 200
-   #cy: 150
-   #cx: 198
-   #cy: 105
-   cx: 420.897003
-   cy: 404.9999085826019
+   fx: 320
+   fy: 320
+   cx: 320
+   cy: 240
    s: 0
 
 # todo: fix these
 image_dimensions:
   #w: 400
   #h: 300
-  w: 848
-  h: 800
+  w: 640
+  h: 480
 
 rotation_offset:
   roll_deg: 0
