@@ -38,7 +38,7 @@ def main(args):
 
     pickle_filename = f"blob_tracking_experiment_3_cache_{datasetName}_{startIdx}_{endIdx}.pickle"
 
-    cameraConfig = readConfig("config/camera_old.yml")
+    cameraConfig = readConfig("config/camera.yml")
     samConfig = readConfig("config/sam.yml")
     pathConfig = readConfig(pathToPathConfig)
     samModel = FastSamWrapper(samConfig.pathToCheckpoint, samConfig.device, samConfig.conf, samConfig.iou)
@@ -54,12 +54,12 @@ def main(args):
     else:
         raise ValueError("Similarity method should be either 'size' or 'feat'.")
 
-    matchingScoreLowerLimit = 0.05
-    minTravelBetweenKeyframes = 2.0 # 0.2 for highbay data; 2.0 for outdoor data
+    matchingScoreLowerLimit = 0
+    minTravelBetweenKeyframes = 0.1 # 0.2 for highbay data; 2.0 for outdoor data
     fTestLimit = 2.0
-    numFramesToSearchOver = 4 # 3 for highbay data; 4 for outdoor data
+    numFramesToSearchOver = 3 # 3 for highbay data; 4 for outdoor data
     pixelMsmtNoiseStd = 3.0
-    numObservationsRequiredForTriang = 5 # 3 for highbay data; 5 for outdoor data
+    numObservationsRequiredForTriang = 3 # 3 for highbay data; 5 for outdoor data
     huberParam = 0.5
 
     blobTracker = BlobTracker(minTravelBetweenKeyframes, ddc, fTestLimit, matchingScoreLowerLimit, numFramesToSearchOver, logger)
@@ -87,22 +87,38 @@ def main(args):
         ys = data["y_at_image_times"]
         zs = data["z_at_image_times"]
         Rs = data["Rs_cam_nav_at_image_times_imu"]
+        ts = data["time"]
         filenames = data["image_filenames"]
 
         for idx in range(startIdx,endIdx):
-            t = np.array([xs[idx],ys[idx],zs[idx]])
-            R = Rs[idx]
-            
-            T = np.eye(4)
-            T[0:3,0:3] = R
-            T[0:3, 3] = t
-            
+
             filename = filenames[idx]
+            # print("filename: ", filename)
+
+            imageTime = [filename[:10] + '.' + filename[10:13]]
+
+            # print("imageTime: ", imageTime)
+            # print("imageTime type: ", type(imageTime))
+            imageTime = imageTime[0]
+        #    0 print("imageTime: ", imageTime)
+            
+
+            # Find the index of the ts that is closest to the filename
+            closest_idx = np.argmin(np.abs(ts - float(imageTime)))
+
+            t = np.array([xs[closest_idx], ys[closest_idx], zs[closest_idx]])
+            R = Rs[closest_idx]
+
+            T = np.eye(4)
+            T[0:3, 0:3] = R
+            T[0:3, 3] = t
 
             # FOR HIGHBAY
             #filePath = os.path.join(pathToData,"pngs/undistorted_images/t265_fisheye1",filename)
             # FOR OUTDOOR: 
-            filePath = os.path.join(pathToData,"camera",filename)
+            #filePath = os.path.join(pathToData,"camera",filename)
+            # FOR AIRSIM
+            filePath = f'/home/annika/data/high_up_lawn_mower_images/{filename}'
             logger.info(f"filename={filename}")
             image = np.asarray(Image.open(filePath))
 
@@ -149,13 +165,13 @@ def main(args):
 
     print(f"Time elapsed: {end_time - start_time} seconds")
 
-    file_path = f'/home/annika/Documents/keyframes/keyframes_batvik{datasetName}_{startIdx}_{endIdx}.csv'
+    # file_path = f'/home/annika/Documents/keyframes/keyframes_batvik{datasetName}_{startIdx}_{endIdx}.csv'
     
     # Write keyframes to the CSV file
-    with open(file_path, mode='w', newline='') as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(["Filename"])  # Write the header
-        writer.writerows([[name] for name in keyframes])  # Write each name as a row
+    # with open(file_path, mode='w', newline='') as csv_file:
+    #     writer = csv.writer(csv_file)
+    #     writer.writerow(["Filename"])  # Write the header
+    #     writer.writerows([[name] for name in keyframes])  # Write each name as a row
 
 
     poseHist = blobTracker.getPoseHistory()

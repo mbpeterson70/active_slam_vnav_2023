@@ -19,6 +19,7 @@ class SamDetectorDescriptorAndSizeComparer(FeatureDetectorDescriptorAndComparer)
         segment_masks = self.samModel.segmentFrame(image)
 
         if (segment_masks is not None):
+            print("SEGMENT MASKS FOUND")
 
             [numMasks, h, w] = segment_masks.shape
 
@@ -33,13 +34,15 @@ class SamDetectorDescriptorAndSizeComparer(FeatureDetectorDescriptorAndComparer)
                     blob_mean, blob_cov = compute_blob_mean_and_covariance(mask_this_id)
                     
                     blob_size = covSize(blob_cov)
-                    print("blob size: ",  blob_size)
+                    #print("blob size: ",  blob_size)
 
-                    if (blob_size > self.sizeMinimum):
+                    if (blob_size > 0):
                         # Store centroids and covariances in lists
                         blob_means.append(blob_mean)
                         blob_covs.append(blob_cov)
                         blob_sizes.append(blob_size)
+        else:
+            print("NO SEGMENT MASKS FOUND")
 
         return blob_means, blob_covs, blob_sizes
     
