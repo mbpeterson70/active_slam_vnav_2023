@@ -1,0 +1,18 @@
+# For configuring paths, make a copy of this file and set paths according to where
+# the data is stored on your computer, and where you would like the output data
+# to be stored.
+
+# This should point to the folder containing the datasets Jouko provided. Under this folder
+# one should find the folders 28, 29, 34, 35, 38, 39, 40 and 41 and possibly other flights.
+# (Each number represents one flight.)
+DataBasePath: "/home/annika/data/airsim"
+
+# Path to an orthophoto map covering the area in Båtvik on which the flights took place.
+pathToMapTiff: "/home/annika/Documents"
+
+# Path to elevation TIFF file
+pathToElevTiff: ""
+
+
+# Path to a folder where a number of output datafiles may be stored.
+pathToOutputData: "/home/annika/data/airsim_output"

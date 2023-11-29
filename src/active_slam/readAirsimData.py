@@ -34,13 +34,11 @@ def get_image_filenames(pathToTestImages):
 
 def getAllData(pathToData):
 
+    #pathToTestData = os.path.join(pathToData,"csvs/t265_fisheye1_combined")
+    pathToTestImages = '/home/annika/data/high_up_lawn_mower_images'
+    pathToTestImagesCsv = '/home/annika/data/high_up_lawn_mower_images.csv'
 
-    pathToTestData = os.path.join(pathToData,"csvs/t265_fisheye1_combined")
-    pathToTestImages = os.path.join(pathToData,"pngs/undistorted_images/t265_fisheye1")
-
-    pathToTestcsv = os.path.join(pathToTestData,"t265_fisheye1.csv")
-
-    test11Data = pd.read_csv(pathToTestcsv)
+    pathToTestcsv = '/home/annika/data/AirsimGT.csv'
 
     retval = dict()
     
@@ -51,6 +49,7 @@ def getAllData(pathToData):
     # Read data from the CSV file
     with open(pathToTestcsv, "r") as csv_file:
         csv_reader = csv.reader(csv_file)
+        next(csv_reader)  # Skip the first row
         for row in csv_reader:
             row_data = [float(value) for value in row]
             data.append(row_data)
@@ -99,5 +98,7 @@ def getAllData(pathToData):
 
     #print(rotation_matrices)
     retval["Rs_cam_nav_at_image_times_imu"] = np.array(rotation_matrices)
+
+    retval['time'] = column_arrays[7]
 
     return retval
