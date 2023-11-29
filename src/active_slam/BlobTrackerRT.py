@@ -1,3 +1,5 @@
+# Written by Annika Thomas
+
 from abc import ABC, abstractmethod
 import numpy as np
 from SamModel import SamModel
@@ -123,12 +125,6 @@ class BlobTracker:
         # pose_noise_sigmas: pose noise
         # frameName: string stating the name of this frame (used for visualizations and debugging only)
 
-        frameIsConsideredKeyframe = False
-
-        if (self.T_prev is not None):
-            T_rel = np.linalg.inv(self.T_prev) @ T
-            travelIncrement = np.linalg.norm(T_rel[0:3,3])
-            self.totalTravel += travelIncrement
         
         # handle new keyframe
         frameIsConsideredKeyframe = True
