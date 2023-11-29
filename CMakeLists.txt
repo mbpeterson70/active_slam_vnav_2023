@@ -49,6 +49,8 @@ add_message_files(
   FILES
   Map.msg
   Object.msg
+  SegmentMeasurement.msg
+  MeasurementPacket.msg
 )
 
 ## Generate services in the 'srv' folder
