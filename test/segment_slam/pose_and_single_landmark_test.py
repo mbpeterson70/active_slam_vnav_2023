@@ -34,6 +34,10 @@ for i, T in enumerate(poses):
         slam.add_relative_pose(None, None)
     else:
         slam.add_relative_pose(relative_T, np.diag([np.deg2rad(1)**2, np.deg2rad(1)**2, np.deg2rad(1)**2, .01**2, .01**2, .01**2]))
+    if i < 8:
+        slam.add_segment_measurement(0, np.array([250., 250.]), 1, initial_guess=np.array([0, 0., r]))
+
+# for i in range(len(poses)):
 
 result = slam.solve()
 marginals = gtsam.Marginals(slam.graph, result)
@@ -44,6 +48,7 @@ for i in range(num_poses):
     gtsam_plot.plot_pose3(plt.gcf().number, result.atPose3(slam.x(i+1)), 0.5,
                               marginals.marginalCovariance(slam.x(i+1)))    
 
-    plt.axis('equal')
+gtsam_plot.plot_point3(plt.gcf().number, result.atPoint3(slam.o(1)), 's')
 
+plt.axis('equal')
 plt.show()
