@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 import numpy as np
-from SamModel import SamModel
-from utils import compute_blob_mean_and_covariance, covSize, blobTouchesBorder, plotErrorEllipse
+from active_slam.SamModel import SamModel
+from active_slam.utils import compute_blob_mean_and_covariance, covSize, blobTouchesBorder, plotErrorEllipse
 import cv2
 from scipy.optimize import linear_sum_assignment
 import time
@@ -313,7 +313,8 @@ class BlobTracker:
                 score *= pxdist_probability
 
                 if (score > self.matchingScoreLowerLimit and pxdist_scaled < 2.0): # todo: add pxdist_scaled as parameter to this class!
-                    track.addDetection(self.latestKeyframeIndex, new_keypoints[newKeypointIdx], new_descriptors[newKeypointIdx], new_sizes[newKeypointIdx])
+                    #track.addDetection(self.latestKeyframeIndex, new_keypoints[newKeypointIdx], new_descriptors[newKeypointIdx], new_sizes[newKeypointIdx])
+                    track.addDetection(self.latestKeyframeIndex, [42, 42], new_descriptors[newKeypointIdx], new_sizes[newKeypointIdx])
                     self.log(f"Adding detection of existing track {track.getTrackId()} at keyframe {self.latestKeyframeIndex} at pixel coordinates {new_keypoints[newKeypointIdx]}, score={score:.3f}, pixel dist={pxdist_scaled:.2f}, pxdist_prob={pxdist_probability:.2f}")
                 else:
                     newKeypointIndices_filteredBasedOnScoreAfterHung.append(newKeypointIdx)

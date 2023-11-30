@@ -1,11 +1,11 @@
-from FastSAM.fastsam import *
+from active_slam.FastSAM.fastsam import *
 import cv2
 import os
 import shutil
-from utils import compute_blob_mean_and_covariance
+from active_slam.utils import compute_blob_mean_and_covariance
 import numpy as np
 import matplotlib.pyplot as plt
-from utils import plotErrorEllipse
+from active_slam.utils import plotErrorEllipse
 import skimage
 
 # Specify path to checkpoint. (If checkpoint does not exist, the implementation in FastSAM repo downloads it.)

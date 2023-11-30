@@ -1,7 +1,7 @@
 
-from utils import visualizeMAP
+from active_slam.utils import visualizeMAP
 # for outdoor: 
-from readAirsimData import getAllData 
+from active_slam.readAirsimData import getAllData 
 # for highbay: from readHighbayData import getAllData
 import numpy as np
 import skimage
@@ -16,7 +16,7 @@ from FastSamWrapper import FastSamWrapper
 import matplotlib.pyplot as plt
 from BlobSfm import BlobSfm
 from OrthoImageLoader import OrthoImageLoader
-from Visualizer import Visualizer
+# from Visualizer import Visualizer
 from utils import rotAndTransFromT
 import argparse
 import cv2

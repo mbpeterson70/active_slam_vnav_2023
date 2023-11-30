@@ -1,62 +1,68 @@
 # Written by Annika Thomas
 
-from utils import visualizeMAP
+from active_slam.utils import visualizeMAP
 # for outdoor: 
-from readAirsimData import getAllData 
+from active_slam.readAirsimData import getAllData 
 # for highbay: from readHighbayData import getAllData
 import numpy as np
 import skimage
 import os
-from BlobTrackerRT import BlobTracker
-from SamDetectorDescriptorAndSizeComparer import SamDetectorDescriptorAndSizeComparer
-from SamFeatDdc import SamFeatDdc
+from active_slam.BlobTrackerRT import BlobTracker
+from active_slam.SamDetectorDescriptorAndSizeComparer import SamDetectorDescriptorAndSizeComparer
+from active_slam.SamFeatDdc import SamFeatDdc
 from PIL import Image
-from utils import readConfig, getLogger, plotErrorEllipse
-from FastSamWrapper import FastSamWrapper
+from active_slam.utils import readConfig, getLogger, plotErrorEllipse
+from active_slam.FastSamWrapper import FastSamWrapper
 #from SamWrapper import SamWrapper
 import matplotlib.pyplot as plt
-from BlobSfm import BlobSfm
-from OrthoImageLoader import OrthoImageLoader
-from Visualizer import Visualizer
-from utils import rotAndTransFromT
+from active_slam.BlobSfm import BlobSfm
+from active_slam.OrthoImageLoader import OrthoImageLoader
+#from active_slam.Visualizer import Visualizer
+from active_slam.utils import rotAndTransFromT
 import argparse
 import cv2
 import csv
 
 class BlobSAMNode:
 
-    def __init__(self, image, T, filename):
+    def __init__(self, image, T, filename, blobTracker):
         self.image = image
         self.T = T
         self.filename = filename
+        self.blobTracker = blobTracker
 
     def process_image(self):
 
-        similaritymethod = 'size'
+        # similaritymethod = 'size'
 
-        cameraConfig = readConfig("config/camera.yml")
-        samConfig = readConfig("config/sam.yml")
-        samModel = FastSamWrapper(samConfig.pathToCheckpoint, samConfig.device, samConfig.conf, samConfig.iou)
+        # #cameraConfig = readConfig("./config/camera.yml")
+        # #samConfig = readConfig("./config/sam.yml")
+        # pathToCheckpoint = "./FastSAM/Models/FastSAM-x.pt"
+        # #pathToCheckpoint: "sam_b.pt"
+        # device = "cuda"
+        # conf = 0.5
+        # iou = 0.9
+        # samModel = FastSamWrapper(pathToCheckpoint, device, conf, iou)
 
-        logger = getLogger()
+        # logger = getLogger()
 
-        if (similaritymethod == "size"):
-            logger.info("Using similarity method based on size.")
-            ddc = SamDetectorDescriptorAndSizeComparer(samModel)
-        elif (similaritymethod == "feat"):
-            logger.info("Using similarity method based on features.")
-            ddc = SamFeatDdc(samModel)
-        else:
-            raise ValueError("Similarity method should be either 'size' or 'feat'.")
+        # if (similaritymethod == "size"):
+        #     #logger.info("Using similarity method based on size.")
+        #     ddc = SamDetectorDescriptorAndSizeComparer(samModel)
+        # elif (similaritymethod == "feat"):
+        #     #logger.info("Using similarity method based on features.")
+        #     ddc = SamFeatDdc(samModel)
+        # else:
+        #     raise ValueError("Similarity method should be either 'size' or 'feat'.")
 
-        matchingScoreLowerLimit = 0
-        fTestLimit = 2.0
-        numFramesToSearchOver = 3 
-        pixelMsmtNoiseStd = 3.0
-        numObservationsRequiredForTriang = 3
-        huberParam = 0.5
+        # matchingScoreLowerLimit = 0
+        # fTestLimit = 2.0
+        # numFramesToSearchOver = 3 
+        # pixelMsmtNoiseStd = 3.0
+        # numObservationsRequiredForTriang = 3
+        # huberParam = 0.5
 
-        blobTracker = BlobTracker(ddc, fTestLimit, matchingScoreLowerLimit, numFramesToSearchOver, logger)
+        # blobTracker = BlobTracker(ddc, fTestLimit, matchingScoreLowerLimit, numFramesToSearchOver, logger)
 
         rotStd_deg = 0
         rotStd_rad = np.deg2rad(rotStd_deg)
@@ -65,11 +71,11 @@ class BlobSAMNode:
         pose_noise_sigma = [rotStd_rad, rotStd_rad, rotStd_rad, translStd_m, translStd_m, translStd_m]
 
         # Handle the new frame
-        isKeyframe = blobTracker.handleNewFrame(self.image, self.T, pose_noise_sigma, self.filename)
+        isKeyframe = self.blobTracker.handleNewFrame(self.image, self.T, pose_noise_sigma, self.filename)
 
-        poseHist = blobTracker.getPoseHistory()
-        poseNoiseHist = blobTracker.getPoseNoiseHistory()
-        tracks = blobTracker.getFeatureTracks()
+        poseHist = self.blobTracker.getPoseHistory()
+        poseNoiseHist = self.blobTracker.getPoseNoiseHistory()
+        tracks = self.blobTracker.getFeatureTracks()
 
         # Return the tracks
         return tracks
