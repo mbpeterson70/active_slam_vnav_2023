@@ -48,18 +48,19 @@ class SegmentSLAM():
         if pre_idx == -1:
             # prior_noise = gtsam.noiseModel.Gaussian.Covariance(
             #     np.diag([.01, .01, .01, .0001, .0001, .0001]))
-            factor = gtsam.NonlinearEqualityPose3(self.x(1), gtsam.Pose3())
+            factor = gtsam.NonlinearEqualityPose3(self.x(0), gtsam.Pose3())
             self.graph.push_back(factor)
-            self.initial_guess.insert(self.x(1), gtsam.Pose3())
+            self.initial_guess.insert(self.x(0), gtsam.Pose3())
             self.pose_chain.append(np.eye(4)) # initial pose at origin
 
         else:
+            print(self.pose_idx)
             noise = gtsam.noiseModel.Gaussian.Covariance(covariance)
-            factor = gtsam.BetweenFactorPose3(self.x(pre_idx+1), self.x(self.pose_idx+1), 
+            factor = gtsam.BetweenFactorPose3(self.x(pre_idx), self.x(self.pose_idx), 
                                               gtsam.Pose3(T_relative), noise)
             self.graph.push_back(factor)
             self.pose_chain.append(T_relative @ self.pose_chain[pre_idx])
-            self.initial_guess.insert(self.x(self.pose_idx+1), gtsam.Pose3(self.pose_chain[-1]))
+            self.initial_guess.insert(self.x(self.pose_idx), gtsam.Pose3(self.pose_chain[-1]))
     
     def add_segment_measurement(self, object_id, center_pixel, pixel_std_dev, initial_guess=None, pose_idx=None):
         if pose_idx is None:
@@ -67,14 +68,14 @@ class SegmentSLAM():
         
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, pixel_std_dev)
         factor = gtsam.GenericProjectionFactorCal3DS2(
-            gtsam.Point2(center_pixel), measurement_noise, self.x(pose_idx+1), self.o(object_id+1), self.cal3ds2)
+            gtsam.Point2(center_pixel), measurement_noise, self.x(pose_idx), self.o(object_id), self.cal3ds2)
         self.graph.push_back(factor)
         
         if initial_guess is not None:
             try:
-                self.initial_guess.insert(self.o(object_id+1), gtsam.Point3(initial_guess))
+                self.initial_guess.insert(self.o(object_id), gtsam.Point3(initial_guess))
             except:
-                print("SegmentSLAM Warning: Initial guess for oject already exists")
+                print("SegmentSLAM Warning: Initial guess for oject may already exis")
             
     def solve(self):
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)

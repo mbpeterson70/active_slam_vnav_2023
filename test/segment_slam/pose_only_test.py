@@ -41,8 +41,8 @@ marginals = gtsam.Marginals(slam.graph, result)
 ax = plt.subplot(projection='3d')
 
 for i in range(num_poses):
-    gtsam_plot.plot_pose3(plt.gcf().number, result.atPose3(slam.x(i+1)), 0.5,
-                              marginals.marginalCovariance(slam.x(i+1)))    
+    gtsam_plot.plot_pose3(plt.gcf().number, result.atPose3(slam.x(i)), 0.5,
+                              marginals.marginalCovariance(slam.x(i)))    
 
     plt.axis('equal')
 
