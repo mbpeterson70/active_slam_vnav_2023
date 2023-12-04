@@ -25,7 +25,6 @@ from active_slam.utils import readConfig, getLogger, plotErrorEllipse
 
 from utils import T_2_pose_msg, pose_msg_2_T
 
-
 class SAM_DA_node:
 
     def __init__(self):
