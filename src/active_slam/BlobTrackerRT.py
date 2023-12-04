@@ -63,15 +63,21 @@ class FeatureTrack:
     def getLatestFrameWhereDetected(self):
         return self.framesWhereSeen[-1]
     
-    def trackSeenInFrame(self,idx):
-        if (idx in self.framesWhereSeen):
+    def trackSeenInFrame(self, idx):
+        if idx in self.framesWhereSeen:
             return True
         return False
 
     def getPxcoordsAndDescriptorsForFrame(self, idx):
         for obs_idx, frameWhereSeen in enumerate(self.framesWhereSeen):
-            if (frameWhereSeen == idx):
+            if frameWhereSeen == idx:
                 return self.pxCoords[obs_idx], self.descriptors[obs_idx]
+        return None
+
+    def getPxCoords(self, idx):
+        for obs_idx, frameWhereSeen in enumerate(self.framesWhereSeen):
+            if frameWhereSeen == idx:
+                return self.pxCoords[obs_idx]
         return None
     
     def getPxCoordsAndDescriptorsForAllFrames(self):
@@ -313,8 +319,7 @@ class BlobTracker:
                 score *= pxdist_probability
 
                 if (score > self.matchingScoreLowerLimit and pxdist_scaled < 2.0): # todo: add pxdist_scaled as parameter to this class!
-                    #track.addDetection(self.latestKeyframeIndex, new_keypoints[newKeypointIdx], new_descriptors[newKeypointIdx], new_sizes[newKeypointIdx])
-                    track.addDetection(self.latestKeyframeIndex, [42, 42], new_descriptors[newKeypointIdx], new_sizes[newKeypointIdx])
+                    track.addDetection(self.latestKeyframeIndex, new_keypoints[newKeypointIdx], new_descriptors[newKeypointIdx], new_sizes[newKeypointIdx])
                     self.log(f"Adding detection of existing track {track.getTrackId()} at keyframe {self.latestKeyframeIndex} at pixel coordinates {new_keypoints[newKeypointIdx]}, score={score:.3f}, pixel dist={pxdist_scaled:.2f}, pxdist_prob={pxdist_probability:.2f}")
                 else:
                     newKeypointIndices_filteredBasedOnScoreAfterHung.append(newKeypointIdx)
