@@ -23,6 +23,7 @@ from active_slam.SamFeatDdc import SamFeatDdc
 from active_slam.FastSamWrapper import FastSamWrapper
 from active_slam.utils import readConfig, getLogger, plotErrorEllipse
 
+from utils import T_2_pose_msg, pose_msg_2_T
 
 class SAM_DA_node:
 
@@ -141,9 +142,13 @@ class SAM_DA_node:
 
         # Add relative pose measurement
         if self.last_pose is None:
-            packet.incremental_pose = PoseWithCovariance(np.eye(4), np.zeros((6,6)))
+            packet.incremental_pose = PoseWithCovariance()
+            packet.incremental_pose.pose = T_2_pose_msg(np.eye(4))
+            packet.incremental_pose.covariance = np.zeros((6,6)).reshape(-1)
         else:
-            packet.incremental_pose = PoseWithCovariance(np.linalg.inv(self.last_pose) @ T, np.zeros((6,6)))
+            packet.incremental_pose = PoseWithCovariance()
+            packet.incremental_pose.pose = T_2_pose_msg(np.linalg.inv(self.last_pose) @ T)
+            packet.incremental_pose.covariance = np.zeros((6,6)).reshape(-1)
 
         for track in self.blobTracker.tracks:
 
@@ -167,10 +172,11 @@ class SAM_DA_node:
                 segmentMeasurement.id = track.trackId
                 segmentMeasurement.center = Pose2D(x=px_coords[0], y=px_coords[1], theta=0)
                 segmentMeasurement.sequence = np.int32(counter)
-                segmentMeasurement.covariance = np.zeros((4,4))
+                # TODO: make rosparam pixel covariance
+                segmentMeasurement.covariance = np.diag([1., 1.]).reshape(-1)
                 packet.segments.append(segmentMeasurement)
 
-        #print(packet)
+        # print(packet)
         self.meas_pub.publish(packet)
 
         self.last_pose = T
