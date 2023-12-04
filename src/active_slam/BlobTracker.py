@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from SamModel import SamModel
-from utils import compute_blob_mean_and_covariance, covSize, blobTouchesBorder, plotErrorEllipse
+from active_slam.SamModel import SamModel
+from active_slam.utils import compute_blob_mean_and_covariance, covSize, blobTouchesBorder, plotErrorEllipse
 import cv2
 from scipy.optimize import linear_sum_assignment
 import time

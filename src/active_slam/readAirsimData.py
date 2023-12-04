@@ -11,7 +11,7 @@ from pyproj import Transformer
 import argparse
 from PIL import Image
 import imageio
-from Visualizer import Visualizer
+#from active_slam.Visualizer import Visualizer
 import csv
 
 def get_image_filenames(pathToTestImages):
