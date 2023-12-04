@@ -46,7 +46,7 @@ class SAM_DA_node:
                                        sensor_msgs.CameraInfo),
         ]
 
-        # SAM stuff        
+        # SAM params      
         matchingScoreLowerLimit = 0
         fTestLimit = 2.0
         numFramesToSearchOver = 3 
@@ -54,6 +54,7 @@ class SAM_DA_node:
         numObservationsRequiredForTriang = 3
         huberParam = 0.5
 
+        # FastSAM params
         similaritymethod = 'size'
         pathToCheckpoint = "./FastSAM/Models/FastSAM-x.pt"
         device = "cuda"
@@ -65,21 +66,24 @@ class SAM_DA_node:
 
         ddc = SamDetectorDescriptorAndSizeComparer(samModel)
 
+        # Instantiate blob tracker
         self.blobTracker = BlobTracker(ddc, fTestLimit, matchingScoreLowerLimit, numFramesToSearchOver, logger)
         print("BlobTracker instantiated")
 
+        # Instantiate BlobSAMNode
         self.blob_sam_node = BlobSAMNode(image=None, T=None, filename=None, blobTracker=self.blobTracker)  # Instantiate BlobSAMNode class
         print("BlobSAMNode instantiated")
 
+        # Approximate Time Synchronizer
         self.ts = message_filters.ApproximateTimeSynchronizer(subs, queue_size=1, slop=.1)
         self.ts.registerCallback(self.cb) # registers incoming messages to callback
 
         # ros publishers
         self.meas_pub = rospy.Publisher("measurement_packet", active_slam_msgs.MeasurementPacket, queue_size=5)
 
+        # initialize last image and pose
         self.last_image = None
         self.last_pose = None
-        self.track_ids = []
 
     def cb(self, *msgs):
         """
@@ -90,27 +94,22 @@ class SAM_DA_node:
 
         counter = self.counter
 
-        #print(f"Callback at counter {counter}")
-
         # conversion from ros msg to cv img
         img = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding='bgr8')
 
         # extract camera intrinsics
         K = np.array([cam_info_msg.K]).reshape((3,3))
 
-        # print(odom_msg)
-
-        # extract pose from odom msg using position and
+        # extract pose from odom msg using position and orientation
         R = Rot.from_quat([odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y, \
         odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w])
         t = np.array([odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y, odom_msg.pose.pose.position.z])
         T = np.eye(4); T[:3,:3] = R.as_matrix(); T[:3,3] = t
 
-        # print(T)
+        # get latest keyframe index
         keyframe = self.blob_sam_node.blobTracker.latestKeyframeIndex
         if keyframe == None:
             keyframe = 0
-
 
         # image and pose in BlobSAMNode
         self.blob_sam_node.image = img
@@ -118,25 +117,12 @@ class SAM_DA_node:
         self.blob_sam_node.filename = self.blob_sam_node.blobTracker.latestKeyframeIndex
         self.blob_sam_node.blobTracker = self.blobTracker
 
-        print(f"latest keyframe index: {self.blob_sam_node.blobTracker.latestKeyframeIndex}")
+        print(f"latest keyframe index: {keyframe}")
 
         # Process image and get tracks
         tracks = self.blob_sam_node.process_image()
-        # print(tracks)
 
-        # px coords and descriptors for frame using getPxcoordsAndDescriptorsForFrame
-        # px_coords, descriptors = self.blob_sam_node.blobTracker.getPxcoordsAndDescriptorsForFrame(keyframe)
-        
-        #for track_id, pixel_coords in enumerate(tracks):
-        #    print(f"Track ID: {track_id}, Pixel Coordinates: {pixel_coords}")
-
-            # print x and y of pixel coords
-        
-        # Create and publish measurement packet
-        # for track in self.blobTracker.tracks:
-        #     track_id = track.trackId
-        #     print("Track ID:", track_id)
-
+        # Create measurement packet
         packet = active_slam_msgs.MeasurementPacket()
         packet.sequence = np.int32(counter)
 
@@ -154,24 +140,46 @@ class SAM_DA_node:
 
             # print("Track ID: ", track.trackId)
             print("Counter: ", counter)
-            
-            self.track_ids.append(track.trackId)
-            # count how many of track_id there are in track_ids
-            num_track_id = self.track_ids.count(track.trackId)
+
+            frames_where_seen = track.framesWhereSeen
+            # num track id is length of frames_where_seen
+            num_track_id = len(frames_where_seen)
             print(f"Track ID: {track.trackId}, Number of times seen: {num_track_id}")
 
-            print("Frames wheres seen: ", track.framesWhereSeen)
+            print("Frames wheres seen: ", frames_where_seen)
 
-            px_coords = track.getPxCoords(counter)
+            current_px_coords = track.getPxCoords(counter)
 
-            print(f"Pixel Coordinates: {px_coords}")
+            # If the track has been seen in 3 frames and pixel coordinates is not none, add all three to the measurement packet
+            if num_track_id == 3 and current_px_coords is not None:
+                # make a segment measurement for each counter in frames where seen
+                for frame in frames_where_seen:
+                    print(f"Adding one of three segment measurements to packet at sequence {frame} for track {track.trackId}")
 
-            # If the track has been seen in more than 2 frames and pixel coordinates is not none, add it to the measurement packet
-            if num_track_id > 2 and px_coords is not None:
+                    #print(f"Frame: {frame}")
+
+                    px_coords = track.getPxCoords(frame)
+                    #print(f"Pixel Coordinates: {px_coords}")
+                    
+                    segmentMeasurement = active_slam_msgs.SegmentMeasurement()
+                    segmentMeasurement.id = track.trackId
+                    segmentMeasurement.center = Pose2D(x=px_coords[0], y=px_coords[1], theta=0)
+                    segmentMeasurement.sequence = np.int32(frame) 
+                    # TODO: make rosparam pixel covariance
+                    segmentMeasurement.covariance = np.diag([1., 1.]).reshape(-1)
+                    packet.segments.append(segmentMeasurement)
+
+            if num_track_id > 3 and current_px_coords is not None:
+                print(f"Adding one new segment measurement to packet at sequence {counter} for track {track.trackId}")
+
+                #print(f"Frame: {counter}")
+
+                #print(f"Pixel Coordinates: {current_px_coords}")
+
                 segmentMeasurement = active_slam_msgs.SegmentMeasurement()
                 segmentMeasurement.id = track.trackId
-                segmentMeasurement.center = Pose2D(x=px_coords[0], y=px_coords[1], theta=0)
-                segmentMeasurement.sequence = np.int32(counter)
+                segmentMeasurement.center = Pose2D(x=current_px_coords[0], y=current_px_coords[1], theta=0)
+                segmentMeasurement.sequence = np.int32(counter) 
                 # TODO: make rosparam pixel covariance
                 segmentMeasurement.covariance = np.diag([1., 1.]).reshape(-1)
                 packet.segments.append(segmentMeasurement)
