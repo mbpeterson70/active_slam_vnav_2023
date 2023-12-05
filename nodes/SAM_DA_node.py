@@ -55,7 +55,7 @@ class SAM_DA_node:
         huberParam = 0.5
 
         # FastSAM params
-        similaritymethod = 'size'
+        similaritymethod = 'feat'
         pathToCheckpoint = "./FastSAM/Models/FastSAM-x.pt"
         device = "cuda"
         conf = 0.5
@@ -64,7 +64,8 @@ class SAM_DA_node:
 
         logger = getLogger()
 
-        ddc = SamDetectorDescriptorAndSizeComparer(samModel)
+        maxSizeDiff = 0.5
+        ddc = SamFeatDdc(samModel, maxSizeDiff)
 
         # Instantiate blob tracker
         self.blobTracker = BlobTracker(ddc, fTestLimit, matchingScoreLowerLimit, numFramesToSearchOver, logger)
@@ -148,7 +149,13 @@ class SAM_DA_node:
 
             print("Frames wheres seen: ", frames_where_seen)
 
-            current_px_coords = track.getPxCoords(counter)
+            # only run if seen in latest frame:
+            if counter not in frames_where_seen:
+                continue
+
+            current_px_coords, current_desc = track.getPxcoordsAndDescriptorsForFrame(counter)
+            current_sift = current_desc[1]
+            #print(f"current sift: {current_sift}")
 
             # If the track has been seen in 3 frames and pixel coordinates is not none, add all three to the measurement packet
             if num_track_id == 3 and current_px_coords is not None:
@@ -158,7 +165,8 @@ class SAM_DA_node:
 
                     #print(f"Frame: {frame}")
 
-                    px_coords = track.getPxCoords(frame)
+                    px_coords, desc = track.getPxcoordsAndDescriptorsForFrame(frame)
+                    sift = desc[1]
                     #print(f"Pixel Coordinates: {px_coords}")
                     
                     segmentMeasurement = active_slam_msgs.SegmentMeasurement()
@@ -167,6 +175,7 @@ class SAM_DA_node:
                     segmentMeasurement.sequence = np.int32(frame) 
                     # TODO: make rosparam pixel covariance
                     segmentMeasurement.covariance = np.diag([1., 1.]).reshape(-1)
+                    segmentMeasurement.latest_sift = sift
                     packet.segments.append(segmentMeasurement)
 
             if num_track_id > 3 and current_px_coords is not None:
@@ -182,6 +191,7 @@ class SAM_DA_node:
                 segmentMeasurement.sequence = np.int32(counter) 
                 # TODO: make rosparam pixel covariance
                 segmentMeasurement.covariance = np.diag([1., 1.]).reshape(-1)
+                segmentMeasurement.latest_sift = current_sift
                 packet.segments.append(segmentMeasurement)
 
         # print(packet)
