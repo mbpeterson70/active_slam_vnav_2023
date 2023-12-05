@@ -54,7 +54,6 @@ class SegmentSLAM():
             self.pose_chain.append(np.eye(4)) # initial pose at origin
 
         else:
-            print(self.pose_idx)
             noise = gtsam.noiseModel.Gaussian.Covariance(covariance)
             factor = gtsam.BetweenFactorPose3(self.x(pre_idx), self.x(self.pose_idx), 
                                               gtsam.Pose3(T_relative), noise)
@@ -76,6 +75,16 @@ class SegmentSLAM():
                 self.initial_guess.insert(self.o(object_id), gtsam.Point3(initial_guess))
             except:
                 print("SegmentSLAM Warning: Initial guess for oject may already exis")
+
+    def triangulate_object_init_guess(self, pixels: list, pixel_std_dev: float, pose_idxs: list):
+        camera_poses = []
+        for idx in pose_idxs:
+            camera_poses.append(gtsam.PinholeCameraCal3DS2(gtsam.Pose3(self.pose_chain[idx]), self.cal3ds2))
+        camera_set = gtsam.gtsam.CameraSetCal3DS2(camera_poses)
+        pixels_point_vec = gtsam.Point2Vector([gtsam.Point2(pix) for pix in pixels])
+        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, pixel_std_dev)
+        init_guess = gtsam.triangulatePoint3(camera_set, pixels_point_vec, rank_tol=1e-9, optimize=True, model=measurement_noise)
+        return init_guess
             
     def solve(self):
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)
