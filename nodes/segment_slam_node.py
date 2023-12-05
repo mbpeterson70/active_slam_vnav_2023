@@ -42,18 +42,19 @@ class SegmentSLAMNode():
         
         self.slam.add_relative_pose(
             pose_msg_2_T(packet.incremental_pose.pose), 
-            packet.incremental_pose.covariance, 
+            np.array(packet.incremental_pose.covariance).reshape((6,6)), 
             pre_idx=packet.sequence - 1
         )
 
         for segment in packet.segments:
             self.slam.add_segment_measurement(
                 object_id=segment.id,
-                measurement=segment.center,
-                pixel_std_dev=segment.covariance,
+                center_pixel=segment.center,
+                pixel_std_dev=np.array(segment.covariance).reshape((2,2)).diagonal()[0],
                 initial_guess=segment.initial_guess,
                 pose_idx=segment.sequence
             )
+            self.slam.add_segment_measurement()
 
         return
 

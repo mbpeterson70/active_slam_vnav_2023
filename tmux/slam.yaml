@@ -1,0 +1,21 @@
+session_name: slam
+
+environment:
+  AIRSIM_BIN_PATH: "/home/masonbp/tools/AirSim/environments/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
+  ACTIVE_SLAM_VENV: "/home/masonbp/.envs/active_slam/"
+  BAG_PATH: "/home/masonbp/data/active_slam/initial/high_up_lawn_mower.bag"
+
+options:
+  default-command: /bin/bash
+
+windows:
+- window_name: slam
+  layout: tiled  
+  shell_command_before:
+    - source $ACTIVE_SLAM_VENV/bin/activate
+
+  panes:
+    - roscore
+    - sleep 5; rosbag play $BAG_PATH
+    - sleep 5; rosrun active_slam SAM_DA_node.py
+    - sleep 5; roslaunch active_slam segment_slam.launch
