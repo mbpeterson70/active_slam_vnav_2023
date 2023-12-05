@@ -17,6 +17,7 @@ class SegmentSLAM():
         # internal variables
         self.pose_idx = -1
         self.pose_chain = []
+        self.object_id_mapping = {}
         
         # Set up gtsam factor graph variables
         self.graph = gtsam.NonlinearFactorGraph()
@@ -62,6 +63,7 @@ class SegmentSLAM():
             self.initial_guess.insert(self.x(self.pose_idx), gtsam.Pose3(self.pose_chain[-1]))
     
     def add_segment_measurement(self, object_id, center_pixel, pixel_std_dev, initial_guess=None, pose_idx=None):
+        assert object_id in self.object_id_mapping
         if pose_idx is None:
             pose_idx = self.pose_idx
         
@@ -85,6 +87,18 @@ class SegmentSLAM():
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, pixel_std_dev)
         init_guess = gtsam.triangulatePoint3(camera_set, pixels_point_vec, rank_tol=1e-9, optimize=True, model=measurement_noise)
         return init_guess
+    
+    def new_objects_data_association(self, object_ids, init_guesses, last_pose_idxs):
+        # Step 1: Fix the init_guesses so they are not used by only chaining together odometry
+        # instead, use optimized poses to calculate this
+
+        # Step 2: Perform data association.
+        
+        # Step 3: Add any segments that have been associated to existing objects to the internal
+        # mapping.
+        # TODO: implement above. For now, just assume it's a new object
+        for obj_id in object_ids:
+            self.object_id_mapping[obj_id] = obj_id
             
     def solve(self):
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)
