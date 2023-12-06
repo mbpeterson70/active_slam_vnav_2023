@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import numpy as np
+import gtsam
 
 # ROS imports
 import rospy
@@ -9,8 +10,10 @@ import message_filters
 
 # ROS msgs
 import nav_msgs.msg as nav_msgs
+import geometry_msgs.msg as geometry_msgs
 import sensor_msgs.msg as sensor_msgs
 import active_slam.msg as active_slam_msgs
+import visualization_msgs.msg as visualization_msgs
 
 from active_slam.segment_slam.segment_slam import SegmentSLAM
 
@@ -29,23 +32,30 @@ class SegmentSLAMNode():
         self.received_first_msg = False
         self.seen_objects = set() 
         self.badly_behaved_ids = []
+        self.obj_colors = dict()
         
         # ros subscribers
         self.meas_sub = rospy.Subscriber("measurement_packet", active_slam_msgs.MeasurementPacket, callback=self.meas_packet_cb, queue_size=5)
 
         # ros publishers
+        self.opt_path_pub = rospy.Publisher("optimized_path", nav_msgs.Path, queue_size=5)
+        self.opt_obj_pub = rospy.Publisher("optimized_objects", visualization_msgs.MarkerArray, queue_size=5)
         
 
     def meas_packet_cb(self, packet: active_slam_msgs.MeasurementPacket):
         """
         Called every time a new measurement packet is published
         """
-        
-        self.slam.add_relative_pose(
-            pose_msg_2_T(packet.incremental_pose.pose), 
-            np.array(packet.incremental_pose.covariance).reshape((6,6)), 
-            pre_idx=packet.sequence - 1
-        )
+        # TODO: the message setup does not make this super clear that the first incremental pose
+        # is actually used as the initial pose.
+        if packet.sequence == 0:
+            self.slam.set_initial_pose(pose_msg_2_T(packet.incremental_pose.pose))
+        else:
+            self.slam.add_relative_pose(
+                pose_msg_2_T(packet.incremental_pose.pose), 
+                np.array(packet.incremental_pose.covariance).reshape((6,6)), 
+                pre_idx=packet.sequence - 1
+            )
 
         # Collect new segments and add existing ids
         new_segments = {}
@@ -105,11 +115,75 @@ class SegmentSLAMNode():
                     pose_idx=sm.sequence
                 )
 
-        result = self.slam.solve()
-        print("GOT A RESULT")
-        print(result)
+        try:
+            result = self.slam.solve()
+        except Exception as ex:
+            print(gtsam.VariableIndex(self.slam.graph))
+            raise ex
+        # print("GOT A RESULT")
+        # print(result)
+        # print(gtsam.VariableIndex(self.slam.graph))
+        # print(gtsam.VariableIndex(self.slam.graph).find(self.slam.x(0)))
+        # print(gtsam.VariableIndex(self.slam.graph).__dir__())
+
+        self.publish_optimized_path(result)
+        self.publish_optimized_objects(result)
 
         return
+    
+    def publish_optimized_path(self, result):
+        path = nav_msgs.Path()
+        path.header.stamp = rospy.Time.now()
+        path.header.frame_id = "Multirotor"
+
+        for i in range(len(self.slam.pose_chain)):
+            pose = geometry_msgs.PoseStamped()
+            pose.pose = T_2_pose_msg(result.atPose3(self.slam.x(i)).matrix())
+            path.poses.append(pose)
+
+        self.opt_path_pub.publish(path)
+        return
+    
+    def publish_optimized_objects(self, result):
+        marker_array = visualization_msgs.MarkerArray()
+        for obj_id in self.slam.object_ids:
+            marker_array.markers.append(self.get_object_marker(obj_id, result.atPoint3(self.slam.o(obj_id))))
+        self.opt_obj_pub.publish(marker_array)
+    
+    def get_object_marker(self, obj_id, position):
+
+        if obj_id in self.obj_colors:
+            color = self.obj_colors[obj_id]
+        else:
+            color = np.random.random(3)
+            self.obj_colors[obj_id] = color
+
+        marker = visualization_msgs.Marker()
+        marker = visualization_msgs.Marker()
+        marker.header.stamp = rospy.Time.now()
+        marker.header.frame_id = "Multirotor"
+        marker.id = obj_id
+        marker.type = marker.CUBE
+        marker.action = marker.ADD
+        marker.scale.x = 1.0
+        marker.scale.y = 1.0
+        marker.scale.z = 1.0
+        marker.lifetime = rospy.Duration.from_sec(10.0)
+        marker.frame_locked = 1
+        marker.color.a = 1
+        marker.color.r = color[0]
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+        marker.pose =  geometry_msgs.Pose()
+
+        marker.pose.position.x = position[0]
+        marker.pose.position.y = position[1]
+        marker.pose.position.z = position[2]
+        marker.pose.orientation.w = 1.0
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        return marker
 
 def main():
 

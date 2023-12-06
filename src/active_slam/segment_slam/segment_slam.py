@@ -18,6 +18,7 @@ class SegmentSLAM():
         self.pose_idx = -1
         self.pose_chain = []
         self.object_id_mapping = {}
+        self.object_ids = []
         
         # Set up gtsam factor graph variables
         self.graph = gtsam.NonlinearFactorGraph()
@@ -29,6 +30,14 @@ class SegmentSLAM():
         self.o = gtsam.symbol_shorthand.L
         self.x = gtsam.symbol_shorthand.X
         
+        
+    def set_initial_pose(self, T_init=np.eye(4)):
+        assert self.pose_idx == -1
+        self.pose_idx = 0
+        factor = gtsam.NonlinearEqualityPose3(self.x(0), gtsam.Pose3(T_init))
+        self.graph.push_back(factor)
+        self.initial_guess.insert(self.x(0), gtsam.Pose3(T_init))
+        self.pose_chain.append(T_init) # initial pose at origin
         
     def add_relative_pose(self, T_relative, covariance, pre_idx=None):
         """
@@ -45,16 +54,10 @@ class SegmentSLAM():
         if pre_idx is None:
             pre_idx = self.pose_idx
         
-        self.pose_idx += 1
         if pre_idx == -1:
-            # prior_noise = gtsam.noiseModel.Gaussian.Covariance(
-            #     np.diag([.01, .01, .01, .0001, .0001, .0001]))
-            factor = gtsam.NonlinearEqualityPose3(self.x(0), gtsam.Pose3())
-            self.graph.push_back(factor)
-            self.initial_guess.insert(self.x(0), gtsam.Pose3())
-            self.pose_chain.append(np.eye(4)) # initial pose at origin
-
+            self.set_initial_pose()
         else:
+            self.pose_idx += 1
             noise = gtsam.noiseModel.Gaussian.Covariance(covariance)
             factor = gtsam.BetweenFactorPose3(self.x(pre_idx), self.x(self.pose_idx), 
                                               gtsam.Pose3(T_relative), noise)
@@ -99,6 +102,7 @@ class SegmentSLAM():
         # TODO: implement above. For now, just assume it's a new object
         for obj_id in object_ids:
             self.object_id_mapping[obj_id] = obj_id
+            self.object_ids.append(obj_id)
             
     def solve(self):
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)

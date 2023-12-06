@@ -131,7 +131,8 @@ class SAM_DA_node:
         # Add relative pose measurement
         if self.last_pose is None:
             packet.incremental_pose = PoseWithCovariance()
-            packet.incremental_pose.pose = T_2_pose_msg(np.eye(4))
+            # TODO: right now sending the absolute pose as the first message, a bit hacky
+            packet.incremental_pose.pose = T_2_pose_msg(T)
             packet.incremental_pose.covariance = np.diag([np.deg2rad(.01)**2, np.deg2rad(.01)**2, np.deg2rad(.01)**2, .001**2, .001**2, .001**2]).reshape(-1)
         else:
             packet.incremental_pose = PoseWithCovariance()

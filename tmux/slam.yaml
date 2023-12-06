@@ -16,11 +16,11 @@ windows:
     - source $ACTIVE_SLAM_VENV/bin/activate
 
   panes:
-    - roscore
+    # - roscore
     - sleep 5; rosbag play $BAG_PATH
     - sleep 5; rosrun image_transport republish compressed in:=/airsim_node/Multirotor/front_center_custom/Scene
       raw out:=/airsim_node/Multirotor/front_center_custom/Scene
     - sleep 5; rosrun active_slam SAM_DA_node.py
-    # - sleep 5; roslaunch active_slam segment_slam.launch
+    - sleep 5; roslaunch active_slam segment_slam.launch
     - sleep 5; rosrun active_slam segment_viz_node.py
-    # - sleep 5; rosbag record /annotated_image -o ~/results/active_slam/object_finding/01
+    # - sleep 5; rosbag record /annotated_image -o ~/results/active_slam/segment_slam/00
