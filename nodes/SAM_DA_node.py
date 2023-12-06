@@ -42,8 +42,8 @@ class SAM_DA_node:
             message_filters.Subscriber("/airsim_node/Multirotor/odom_local_ned", nav_msgs.Odometry),
             message_filters.Subscriber("/airsim_node/Multirotor/front_center_custom/Scene",
                                        sensor_msgs.Image),
-            message_filters.Subscriber("/airsim_node/Multirotor/front_center_custom/Scene/camera_info", 
-                                       sensor_msgs.CameraInfo),
+            # message_filters.Subscriber("/airsim_node/Multirotor/front_center_custom/Scene/camera_info", 
+            #                            sensor_msgs.CameraInfo),
         ]
 
         # SAM params      
@@ -91,7 +91,7 @@ class SAM_DA_node:
         This function gets called every time synchronized odometry, image message, and camera info 
         message are available.
         """
-        odom_msg, img_msg, cam_info_msg = msgs
+        odom_msg, img_msg, = msgs #cam_info_msg = msgs
 
         counter = self.counter
 
@@ -99,7 +99,7 @@ class SAM_DA_node:
         img = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding='bgr8')
 
         # extract camera intrinsics
-        K = np.array([cam_info_msg.K]).reshape((3,3))
+        # K = np.array([cam_info_msg.K]).reshape((3,3))
 
         # extract pose from odom msg using position and orientation
         R = Rot.from_quat([odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y, \
@@ -125,6 +125,7 @@ class SAM_DA_node:
 
         # Create measurement packet
         packet = active_slam_msgs.MeasurementPacket()
+        packet.header = img_msg.header
         packet.sequence = np.int32(counter)
 
         # Add relative pose measurement
