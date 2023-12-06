@@ -28,6 +28,7 @@ class SegmentSLAMNode():
         self.slam = SegmentSLAM(self.K, self.distorition_params)
         self.received_first_msg = False
         self.seen_objects = set() 
+        self.badly_behaved_ids = []
         
         # ros subscribers
         self.meas_sub = rospy.Subscriber("measurement_packet", active_slam_msgs.MeasurementPacket, callback=self.meas_packet_cb, queue_size=5)
@@ -50,6 +51,8 @@ class SegmentSLAMNode():
         new_segments = {}
         for segment in packet.segments:
             if segment.id not in self.slam.object_id_mapping:
+                if segment.id in self.badly_behaved_ids:
+                    continue
                 if segment.id in new_segments:
                     new_segments[segment.id].append(segment)
                 else:
@@ -57,7 +60,7 @@ class SegmentSLAMNode():
                 continue
             self.slam.add_segment_measurement(
                 object_id=segment.id,
-                center_pixel=segment.center,
+                center_pixel=np.array([segment.center.x, segment.center.y]),
                 pixel_std_dev=np.array(segment.covariance).reshape((2,2)).diagonal()[0],
                 # initial_guess=segment.initial_guess,
                 pose_idx=segment.sequence
@@ -65,13 +68,25 @@ class SegmentSLAMNode():
 
         # Create initial guesses for new segments
         init_guesses = {}
+        to_delete = []
         for seg_id, segment_measurements in new_segments.items():
             assert len(segment_measurements) >= 3, "not enough initial measurements received"
-            init_guesses[seg_id] = self.slam.triangulate_object_init_guess(
-                pixels=[sm.center for sm in segment_measurements],
-                pixel_std_dev=segment_measurements[0].sm.covariance[0], # just takes the first covariance, TODO: change
-                pose_idxs=[sm.sequence for sm in segment_measurements]
-            )
+            try:
+                init_guesses[seg_id] = self.slam.triangulate_object_init_guess(
+                    pixels=[np.array([sm.center.x, sm.center.y]) for sm in segment_measurements],
+                    pixel_std_dev=segment_measurements[0].covariance[0], # just takes the first covariance, TODO: change
+                    pose_idxs=[sm.sequence for sm in segment_measurements]
+                )
+            except:
+                # print([np.array([sm.center.x, sm.center.y]) for sm in segment_measurements])
+                # print([sm.sequence for sm in segment_measurements])
+                # for seq in [sm.sequence for sm in segment_measurements]:
+                #     print(self.slam.pose_chain[seq])
+                # init_guesses[seg_id] = np.zeros(3)
+                self.badly_behaved_ids.append(seg_id)
+                to_delete.append(seg_id)
+        for seg_id in to_delete:
+            del new_segments[seg_id]
 
         # Perform data association and add new segment measurements
         self.slam.new_objects_data_association(
@@ -84,11 +99,15 @@ class SegmentSLAMNode():
             for sm in segment_measurements:
                 self.slam.add_segment_measurement(
                     object_id=seg_id,
-                    center_pixel=sm.center,
+                    center_pixel=np.array([sm.center.x, sm.center.y]),
                     pixel_std_dev=sm.covariance[0], #not using full cov TODO change to a single float param
                     initial_guess=init_guesses[seg_id],
                     pose_idx=sm.sequence
                 )
+
+        result = self.slam.solve()
+        print("GOT A RESULT")
+        print(result)
 
         return
 

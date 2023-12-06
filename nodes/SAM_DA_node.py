@@ -131,11 +131,11 @@ class SAM_DA_node:
         if self.last_pose is None:
             packet.incremental_pose = PoseWithCovariance()
             packet.incremental_pose.pose = T_2_pose_msg(np.eye(4))
-            packet.incremental_pose.covariance = np.zeros((6,6)).reshape(-1)
+            packet.incremental_pose.covariance = np.diag([np.deg2rad(.01)**2, np.deg2rad(.01)**2, np.deg2rad(.01)**2, .001**2, .001**2, .001**2]).reshape(-1)
         else:
             packet.incremental_pose = PoseWithCovariance()
             packet.incremental_pose.pose = T_2_pose_msg(np.linalg.inv(self.last_pose) @ T)
-            packet.incremental_pose.covariance = np.zeros((6,6)).reshape(-1)
+            packet.incremental_pose.covariance = np.diag([np.deg2rad(.01)**2, np.deg2rad(.01)**2, np.deg2rad(.01)**2, .001**2, .001**2, .001**2]).reshape(-1)
 
         for track in self.blobTracker.tracks:
 
@@ -174,8 +174,8 @@ class SAM_DA_node:
                     segmentMeasurement.center = Pose2D(x=px_coords[0], y=px_coords[1], theta=0)
                     segmentMeasurement.sequence = np.int32(frame) 
                     # TODO: make rosparam pixel covariance
-                    segmentMeasurement.covariance = np.diag([1., 1.]).reshape(-1)
-                    segmentMeasurement.latest_sift = sift
+                    segmentMeasurement.covariance = np.diag([10., 10.]).reshape(-1)
+                    # segmentMeasurement.latest_sift = sift
                     packet.segments.append(segmentMeasurement)
 
             if num_track_id > 3 and current_px_coords is not None:
@@ -190,8 +190,8 @@ class SAM_DA_node:
                 segmentMeasurement.center = Pose2D(x=current_px_coords[0], y=current_px_coords[1], theta=0)
                 segmentMeasurement.sequence = np.int32(counter) 
                 # TODO: make rosparam pixel covariance
-                segmentMeasurement.covariance = np.diag([1., 1.]).reshape(-1)
-                segmentMeasurement.latest_sift = current_sift
+                segmentMeasurement.covariance = np.diag([10., 10.]).reshape(-1)
+                # segmentMeasurement.latest_sift = current_sift
                 packet.segments.append(segmentMeasurement)
 
         # print(packet)
