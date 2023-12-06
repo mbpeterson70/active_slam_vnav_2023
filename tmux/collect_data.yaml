@@ -18,3 +18,5 @@ windows:
     - $AIRSIM_BIN_PATH -RenderOffScreen #-ResX=640 -ResY=480 -windowed
     - sleep 5; roslaunch airsim_ros_pkgs airsim_node.launch
     - sleep 5; roslaunch active_slam planner_ros_node.launch
+    - sleep 5; rosbag record -O /home/masonbp/data/active_slam/initial/high_up_lawnmower_2 /airsim_node/Multirotor/front_center_custom/Scene/compressed
+      /airsim_node/Multirotor/odom_local_ned 
