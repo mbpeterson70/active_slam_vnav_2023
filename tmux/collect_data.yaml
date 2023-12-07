@@ -3,6 +3,7 @@ session_name: airsim
 environment:
   AIRSIM_BIN_PATH: "/home/masonbp/tools/AirSim/environments/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
   ACTIVE_SLAM_VENV: "/home/masonbp/.envs/active_slam/"
+  BAG_PATH: "/home/masonbp/data/active_slam/initial/high_up_lawnmower_3_slow"
 
 options:
   default-command: /bin/bash
@@ -17,6 +18,6 @@ windows:
     - roscore
     - $AIRSIM_BIN_PATH -RenderOffScreen #-ResX=640 -ResY=480 -windowed
     - sleep 5; roslaunch airsim_ros_pkgs airsim_node.launch
-    - sleep 5; roslaunch active_slam planner_ros_node.launch
-    - sleep 5; rosbag record -O /home/masonbp/data/active_slam/initial/high_up_lawnmower_2 /airsim_node/Multirotor/front_center_custom/Scene/compressed
-      /airsim_node/Multirotor/odom_local_ned 
+    - sleep 5; roslaunch active_slam planner_ros_node.launch exploration_velocity:=1.0
+    - sleep 5; rosbag record -o $BAG_PATH /airsim_node/Multirotor/front_center_custom/Scene/compressed
+      /airsim_node/Multirotor/odom_local_ned /airsim_node/Multirotor/front_center_custom/Scene/camera_info
