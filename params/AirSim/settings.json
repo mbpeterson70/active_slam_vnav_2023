@@ -12,8 +12,8 @@
         "ControlPortRemote": 14580,
         "Sensors": {
             "Imu" : {
-            "SensorType": 2,
-            "Enabled": true
+                "SensorType": 2,
+                "Enabled" : true
             },
             "LidarCustom": {
             "SensorType": 6,
@@ -47,7 +47,7 @@
                 }
             ],
             "X": 0.5, "Y": 0.0, "Z": 0.0,
-            "Pitch": -90, "Roll": 0, "Yaw": 0
+            "Pitch": -90, "Roll": -90.0, "Yaw": 0
             },
             "front_left_custom": {
             "CaptureSettings": [

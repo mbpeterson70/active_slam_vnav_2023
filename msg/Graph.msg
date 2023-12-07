@@ -1,3 +1,3 @@
 Header header
-GraphEdges[] edges
-GraphVariables variables
+GraphEdge[] edges
+GraphNode[] nodes

@@ -51,6 +51,10 @@ add_message_files(
   Object.msg
   SegmentMeasurement.msg
   MeasurementPacket.msg
+  GraphNodeID.msg
+  GraphNode.msg
+  GraphEdge.msg
+  Graph.msg
 )
 
 ## Generate services in the 'srv' folder

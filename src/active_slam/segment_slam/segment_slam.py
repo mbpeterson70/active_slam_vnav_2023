@@ -27,7 +27,7 @@ class SegmentSLAM():
         self.cal3ds2 = gtsam.Cal3DS2(K[0,0], K[1,1], K[0,1], K[0,2], K[1,2], 
                                      distortion_params[0], distortion_params[1], distortion_params[2], distortion_params[3])
 
-        self.o = gtsam.symbol_shorthand.L
+        self.o = gtsam.symbol_shorthand.O
         self.x = gtsam.symbol_shorthand.X
         
         

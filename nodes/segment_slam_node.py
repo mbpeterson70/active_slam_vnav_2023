@@ -40,7 +40,7 @@ class SegmentSLAMNode():
         # ros publishers
         self.opt_path_pub = rospy.Publisher("optimized_path", nav_msgs.Path, queue_size=5)
         self.opt_obj_pub = rospy.Publisher("optimized_objects", visualization_msgs.MarkerArray, queue_size=5)
-        
+        self.graph_pub = rospy.Publisher("factor_graph", active_slam_msgs.Graph, queue_size=5)
 
     def meas_packet_cb(self, packet: active_slam_msgs.MeasurementPacket):
         """
@@ -116,7 +116,10 @@ class SegmentSLAMNode():
                 )
 
         try:
+            import time
+            start_t = time.time()
             result = self.slam.solve()
+            print(f"TOTAL TIME: {time.time() - start_t}")
         except Exception as ex:
             print(gtsam.VariableIndex(self.slam.graph))
             raise ex
@@ -126,10 +129,42 @@ class SegmentSLAMNode():
         # print(gtsam.VariableIndex(self.slam.graph).find(self.slam.x(0)))
         # print(gtsam.VariableIndex(self.slam.graph).__dir__())
 
+        self.publish_graph(result)
         self.publish_optimized_path(result)
         self.publish_optimized_objects(result)
 
         return
+    
+    def publish_graph(self, result):
+        graph_msg = active_slam_msgs.Graph()
+        for i in range(len(self.slam.pose_chain)):
+            new_node = active_slam_msgs.GraphNode()
+            new_node.id = active_slam_msgs.GraphNodeID(ord('x'), i)
+            position = result.atPose3(self.slam.x(i)).matrix()[:3,3]
+            new_node.position.x, new_node.position.y, new_node.position.z = position
+            # TODO: send marginal covariance
+            graph_msg.nodes.append(new_node)
+            
+        for obj_id in self.slam.object_ids:
+            new_node = active_slam_msgs.GraphNode()
+            new_node.id = active_slam_msgs.GraphNodeID(ord('o'), i)
+            position = result.atPoint3(self.slam.o(obj_id))
+            new_node.position.x, new_node.position.y, new_node.position.z = position
+            graph_msg.nodes.append(new_node)
+            
+        # populate edges
+        i = 0
+        while self.slam.graph.exists(i):
+            factor = self.slam.graph.at(i)
+            i += 1
+            if len(factor.keys()) != 2:
+                continue
+            new_edge = active_slam_msgs.GraphEdge()
+            for j, k in enumerate(factor.keys()):
+                new_edge.edge[j] = self.key_to_id(k)
+            graph_msg.edges.append(new_edge)           
+        
+        self.graph_pub.publish(graph_msg) 
     
     def publish_optimized_path(self, result):
         path = nav_msgs.Path()
@@ -184,6 +219,10 @@ class SegmentSLAMNode():
         marker.pose.orientation.y = 0.0
         marker.pose.orientation.z = 0.0
         return marker
+    
+    def key_to_id(self, key):
+        symbol = gtsam.Symbol(key)
+        return active_slam_msgs.GraphNodeID(symbol.chr(), symbol.index())
 
 def main():
 

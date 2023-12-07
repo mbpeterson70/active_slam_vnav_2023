@@ -1,1 +1,1 @@
-int32[2] edge
+GraphNodeID[2] edge
