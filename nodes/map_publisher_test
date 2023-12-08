@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+
+import rospy                          
+import random
+from active_slam.msg import Map
+from active_slam.msg import Object
+from geometry_msgs.msg import PoseStamped
+# seed the random number generator
+random.seed(0)
+
+OBJECTS_LOC = [[-5.0, 2.0], [7.0, -4.0], [2.0, 2.0]]
+
+class TestMapPublisher:
+    
+    def __init__(self):
+
+        # publish to the topic /map
+        self.pub_map = rospy.Publisher('map', Map, queue_size=10)
+        # publish to the topic /robot_pose
+        self.pub_robot_pose = rospy.Publisher('robot_pose', PoseStamped, queue_size=10)
+        # store prev pose (only for testing)
+        self.prev_robot_pose = PoseStamped()
+
+        # timer for map 
+        self.timer_for_map = rospy.Timer(rospy.Duration(1), self.timer_cb)
+        # timer for robot pose
+        self.timer_for_robot_pose = rospy.Timer(rospy.Duration(0.1), self.timer_robot_pose_cb)
+
+    # callback function for the timer
+    def timer_cb(self, event):
+        # create a map object
+        map_msg = Map()
+        # fill the map object with data
+        map_msg.objects = []
+        for i in range(3):
+            obj = Object()
+            obj.header.stamp = rospy.Time.now()
+            obj.id = i
+            # randomize the object's pose
+            obj.object.pose.position.x = OBJECTS_LOC[i][0]
+            obj.object.pose.position.y = OBJECTS_LOC[i][1]
+            obj.object.pose.position.z = 0
+            # covariance matrix
+            obj.object.covariance[0] = 1.0
+            obj.object.covariance[7] = 1.0
+            obj.object.covariance[14] = 1.0
+            map_msg.objects.append(obj)
+            # size of the object
+            obj.size[0] = 1.0
+            obj.size[1] = 1.0
+            obj.size[2] = 1.0
+        # publish the map object
+        self.pub_map.publish(map_msg)
+
+    # callback function for the timer
+    def timer_robot_pose_cb(self, event):
+        # create a pose object
+        pose_msg = PoseStamped()
+        # fill the pose object with data
+        pose_msg.header.stamp = rospy.Time.now()
+        # randomize the robot's pose
+        pose_msg.pose.position.x = self.prev_robot_pose.pose.position.x + random.uniform(-0.3, 0.3)
+        pose_msg.pose.position.y = self.prev_robot_pose.pose.position.y + random.uniform(-0.3, 0.3)
+        pose_msg.pose.position.z = self.prev_robot_pose.pose.position.z + random.uniform(-0.3, 0.3)
+        # publish the pose object
+        self.pub_robot_pose.publish(pose_msg)
+        # update the previous pose
+        self.prev_robot_pose = pose_msg
+
+if __name__ == '__main__':
+    rospy.init_node('test_map_publisher', anonymous=True)
+    test_map_publisher = TestMapPublisher()
+    rospy.spin()

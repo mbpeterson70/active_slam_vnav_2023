@@ -1,0 +1,167 @@
+#!/usr/bin/env python
+
+import rospy
+import math       
+from active_slam.msg import Map
+from active_slam.grid_map import GridMapper
+from airsim_ros_pkgs.msg import VelCmd
+from airsim_ros_pkgs.msg import CarControls
+from airsim_ros_pkgs.srv import Takeoff
+from nav_msgs.msg import Odometry
+from scipy.spatial.transform import Rotation as Rot
+import airsim
+import threading
+from active_slam.grid_sweeping import planning
+
+
+class Planner:
+    
+    def __init__(self):
+
+        # get parameters
+        self.car_or_drone = rospy.get_param('~car_or_drone', 'car')
+        self.altitude = rospy.get_param('~altitude', 50.0)
+        self.coverage_area_size = rospy.get_param('~coverage_area_size', 100.0)
+        self.exploration_goal_points_resolution = rospy.get_param('~exploration_goal_points_resolution', 10.0)
+        self.exploration_velocity = rospy.get_param('~exploration_velocity', 5.0)
+        self.GOAL_THRESHOLD = 1.0
+
+        # drone client
+        self.drone_client = airsim.MultirotorClient()
+        self.drone_client.confirmConnection()
+        self.drone_client.enableApiControl(True)
+        self.drone_client.armDisarm(True)
+
+        # lock for the drone client
+        self.drone_client_lock = threading.Lock()
+
+        # grid mapper
+        self.grid_mapper = GridMapper(self.coverage_area_size)
+
+        # path planner
+        # self.path_planner = 
+
+        # store robot's pose
+        self.robot_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0 , 1.0]
+
+        # store goal poses
+        AREA_SIZE = self.coverage_area_size
+        AREA_X = [-AREA_SIZE, AREA_SIZE, AREA_SIZE, -AREA_SIZE, -AREA_SIZE]
+        AREA_Y = [-AREA_SIZE, -AREA_SIZE, AREA_SIZE, AREA_SIZE, -AREA_SIZE]
+        GRID_RES = self.exploration_goal_points_resolution
+        goal_pose_x, goal_pose_y = planning(AREA_X, AREA_Y, GRID_RES)
+        goal_pose_z = -self.altitude
+        self.unexplored_goal_poses = []
+        for i in range(len(goal_pose_x)):
+            self.unexplored_goal_poses.append([goal_pose_x[i], goal_pose_y[i], goal_pose_z])
+        self.goal_idx = 0
+
+        # store goal pose
+        self.goal_pose = self.unexplored_goal_poses[self.goal_idx]
+
+        # robot take off?
+        self.is_robot_take_off = False
+
+        # subscribe to the topic /map
+        self.sub_map = rospy.Subscriber('map', Map, self.map_cb)
+
+        # define ros publisher
+        if self.car_or_drone == 'drone':
+            self.cmd_publisher = rospy.Publisher('/airsim_node/Car/car_cmd', CarControls, queue_size=10)
+        else:
+            self.cmd_publisher = rospy.Publisher('/airsim_node/PX4/vel_cmd_body_frame', VelCmd, queue_size=10)
+         
+        # take off service
+        self.takeoff = rospy.ServiceProxy('/airsim_node/takeoff', Takeoff)
+        self.drone_client_lock.acquire()
+        self.drone_client.takeoffAsync().join()
+        self.drone_client_lock.release()
+
+        # timer for robot pose update
+        self.timer_for_robot_pose_update = rospy.Timer(rospy.Duration(0.1), self.robot_pose_cb)
+        
+        # timer for replanning
+        self.timer_for_replanning = rospy.Timer(rospy.Duration(0.1), self.replanning_cb)
+
+        # timer for map_visualizer
+        self.timer_for_map_visualizer = rospy.Timer(rospy.Duration(1.0), self.map_visualizer_cb)
+
+        # timer for goal reached checker
+        self.timer_for_goal_reached_checker = rospy.Timer(rospy.Duration(1.0), self.goal_reached_checker_cb)
+
+    # callback function for the topic /map
+    def map_cb(self, msg):
+
+        # update objects' list in grid mapper
+        self.grid_mapper.update_objects(msg.objects)
+
+    # callback function for the topic /robot_pose
+    def robot_pose_cb(self, event):
+
+        # get the robot's pose (TODO: this is getting ground truth pose, but we want to get the estimated pose from the SLAM algorithm)
+        self.drone_client_lock.acquire()
+        robot_pose = self.drone_client.simGetGroundTruthKinematics()
+        self.drone_client_lock.release()
+
+        # update the robot's pose
+        self.robot_pose[0] = robot_pose.position.x_val
+        self.robot_pose[1] = robot_pose.position.y_val
+        self.robot_pose[2] = robot_pose.position.z_val
+        self.robot_pose[3] = robot_pose.orientation.x_val
+        self.robot_pose[4] = robot_pose.orientation.y_val
+        self.robot_pose[5] = robot_pose.orientation.z_val
+        self.robot_pose[6] = robot_pose.orientation.w_val
+
+        # print the robot's pose
+        print("robot_pose: ", self.robot_pose)
+
+        # update the robot's pose
+        self.grid_mapper.update_robot_pose(self.robot_pose.copy())
+
+    # callback function for the replanning timer
+    def replanning_cb(self, event):
+
+        # TODO: first, we need to find the waypoint using frontier-based exploration
+
+        # second, we pass the goal to the client
+        # TODO: there's no collision avoidance here
+        print("goal_pose: ", self.goal_pose)
+        self.drone_client_lock.acquire()
+        self.drone_client.moveToPositionAsync(self.goal_pose[0], self.goal_pose[1], self.goal_pose[2], self.exploration_velocity).join()
+        self.drone_client_lock.release()
+
+    # callback function for the map visualizer timer
+    def map_visualizer_cb(self, event):
+
+        # visualize the map 
+        self.grid_mapper.visualize_map(self.unexplored_goal_poses, self.goal_idx)
+    
+    # callback function for the goal reached checker timer
+    def goal_reached_checker_cb(self, event):
+
+        # check if the goal has been reached
+        if self.car_or_drone == 'drone':
+            
+            # calculate the distance between the robot and the goal
+            dist = math.sqrt((self.robot_pose[0] - self.goal_pose[0]) ** 2 + (self.robot_pose[1] - self.goal_pose[1]) ** 2 + (self.robot_pose[2] - self.goal_pose[2]) ** 2)
+            
+            # if the distance is less than GOAL_THRESHOLD, we consider the goal has been reached
+            if dist < self.GOAL_THRESHOLD:
+
+                # if the goal has been reached, we update the goal
+                self.goal_idx = self.goal_idx + 1
+                
+                # if the goal_idx is out of range
+                if self.goal_idx >= len(self.unexplored_goal_poses):
+                    print("all goals reached")
+                    # self.goal_idx = 0 # if we want to start over we can just reset the goal_idx to 0
+
+                self.goal_pose = self.unexplored_goal_poses[self.goal_idx]
+                print("goal reached, new goal: ", self.goal_pose)
+                print("goal_idx: ", self.goal_idx)
+        
+if __name__ == '__main__':
+    rospy.init_node('planner', anonymous=True)
+    planner = Planner()
+    rospy.spin()
+

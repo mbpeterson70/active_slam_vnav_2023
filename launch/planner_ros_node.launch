@@ -1,0 +1,17 @@
+<launch>
+
+	<arg name="car_or_drone" default="drone" />
+	<arg name="altitude" default="50.0" />
+	<arg name="coverage_area_size" default="100.0" />
+	<arg name="exploration_goal_points_resolution" default="10.0" />
+	<arg name="exploration_velocity" default="5.0" />
+
+	<node name="planner_ros_node" pkg="active_slam" type="planner_ros_node" output="screen" >
+		<param name="car_or_drone" value="$(arg car_or_drone)" />
+		<param name="altitude" value="$(arg altitude)" />
+		<param name="coverage_area_size" value="$(arg coverage_area_size)" />
+		<param name="exploration_goal_points_resolution" value="$(arg exploration_goal_points_resolution)" />
+		<param name="exploration_velocity" value="$(arg exploration_velocity)" />
+	</node>	
+    
+</launch>

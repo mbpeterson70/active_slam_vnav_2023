@@ -1,0 +1,7 @@
+<launch>
+
+    <node name="segment_slam" pkg="active_slam" type="segment_slam_node.py" output="screen" respawn="false" >
+        <rosparam param="K" subst_value="True">[320.0, 0.0, 320.0, 0.0, 320.0, 240.0, 0.0, 0.0, 1.0]</rosparam>
+        <rosparam param="distorition_params" subst_value="True">[0.0, 0.0, 0.0, 0.0]</rosparam>
+    </node>
+</launch>

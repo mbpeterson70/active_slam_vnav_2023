@@ -1,0 +1,5 @@
+Header header
+
+int32 sequence
+geometry_msgs/PoseWithCovariance incremental_pose
+SegmentMeasurement[] segments
