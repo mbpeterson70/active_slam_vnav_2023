@@ -1,4 +1,6 @@
-# AirSim Installation
+# Installation
+
+### AirSim
 
 1. Create file `~/Documents/AirSim/settings.json` (example below)
 2. Download environment binary (Linux): [https://github.com/Microsoft/AirSim/releases](https://github.com/Microsoft/AirSim/releases)
@@ -9,41 +11,48 @@
    2. `roslaunch airsim_ros_pkgs airsim_node.launch `
    3. `roslaunch airsim_ros_pkgs rviz.launch`
 
-## other 
+### FastSAM Perception Frontend
 
-Test driving `(rostopic pub /airsim_node/Car/car_cmd airsim_ros_pkgs/CarControls "{throttle: 1.0}" -r 10)`
+TODO
 
-Can look at camera topic using rviz
+### `active_slam` Python Package
 
-## settings.json
+`cd` into this directory and `pip install .`
 
-```json
-{
-  "SettingsVersion": 1.2,
-  "SimMode": "Car",
-  "Vehicles": {
-    "Car": {
-      "VehicleType": "PhysXCar",
-      "Cameras": {
-        "front_center": {
-          "CaptureSettings": [
-            {
-              "ImageType": 0,
-              "Width": 672,
-              "Height": 376,
-              "FOV_Degrees": 90
-            }
-          ],
-          "X": 1.0, "Y": 0.0, "Z": -1.5,
-          "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0
-        }
-      }
-    }
-  }
-}
+### `tmuxp`
+
+```
+sudo apt install tmuxp
 ```
 
-# AirSim simulation
+# Setup
+
+`cd` into this directory and run
+
+```
+source ./utils/cp_settings.sh
+```
+
+to setup the AirSim settings.
+
+# Running the full system
+
+Open up `tmux/perception_exploration.yaml`.
+In the top of the file are a few environment parameters that you should modify (alternatively, you can enter these in the commandline but tbh it should be easier to just edit them once in the file).
+
+Run:
+
+```
+tmuxp load ./tmux/perception_exploration.yaml 
+```
+
+You can visualize by opening up rviz:
+
+```
+rviz -d ./rviz/active_slam.rviz
+```
+
+# Running Kota's stuff alone
 
 1. start rosmaster (``roscore``)
 2. start AirSim env of your choice (``./AbandonedPark/LinuxNoEditor/AbandonedPark/Binaries/Linux/AbandonedPark -ResX=640 -ResY=480 -windowed``)
