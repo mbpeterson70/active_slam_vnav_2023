@@ -9,11 +9,6 @@ from scipy.spatial.transform import Rotation as Rot
 
 from active_slam.msg import Map
 
-# parameters
-EXTEND_AREA = 20.0  # [m] grid map extention length
-COVERAGE_RADIUS = 2.0 # [m] the radius of the coverage area
-PLOT_FIGURE = True
-
 class GridMapper:
 
     """
@@ -24,7 +19,7 @@ class GridMapper:
     """
 
     # constructor
-    def __init__(self):
+    def __init__(self, coverage_area_size):
 
         # store the objects in the map
         self.objects = []
@@ -35,10 +30,11 @@ class GridMapper:
         # the knwon/unknown area map
         # the unknown cells should be covered with gray
         self.grid_res = 0.3
-        self.x_min = -EXTEND_AREA
-        self.x_max = EXTEND_AREA
-        self.y_min = -EXTEND_AREA
-        self.y_max = EXTEND_AREA
+        self.coverage_area_size = coverage_area_size
+        self.x_min = -self.coverage_area_size
+        self.x_max = self.coverage_area_size
+        self.y_min = -self.coverage_area_size
+        self.y_max = self.coverage_area_size
         xw = int(round((self.x_max - self.x_min) / self.grid_res))
         yw = int(round((self.y_max - self.y_min) / self.grid_res))
         # create a 2D array
@@ -48,6 +44,15 @@ class GridMapper:
 
         # save image counter
         self.image_counter = 0
+
+        ## for visualization purpose
+
+        # FOV of the drone
+        # but this is only for visualization purpose and this depends on the altitude, so it's pretty arbitrary
+        self.coverage_radius_for_visualization = 10.0 # [m] the radius of the coverage area
+
+        # visualize the map?
+        self.is_plot_map = True
 
     # update the objects' list
     def update_objects(self, map):
@@ -84,10 +89,10 @@ class GridMapper:
         for xidx in range(self.occ_grid_map.shape[0]):
             for yidx in range(self.occ_grid_map.shape[1]):
                 # if the cell has been covered by the robot
-                map_x = xidx * self.grid_res - EXTEND_AREA
-                map_y = yidx * self.grid_res - EXTEND_AREA
+                map_x = xidx * self.grid_res - self.coverage_area_size
+                map_y = yidx * self.grid_res - self.coverage_area_size
                 dist = math.sqrt((map_x - robot_pos_x) ** 2 + (map_y - robot_pos_y) ** 2)
-                if  dist < COVERAGE_RADIUS:
+                if  dist < self.coverage_radius_for_visualization:
                     self.occ_grid_map[xidx, yidx] = 1.0
 
     # visualize a 2D grid map
@@ -95,7 +100,7 @@ class GridMapper:
 
         print("visualizing map")
 
-        if PLOT_FIGURE:  # pragma: no cover
+        if self.is_plot_map:  # pragma: no cover
 
             # clear the current figure
             plt.cla()

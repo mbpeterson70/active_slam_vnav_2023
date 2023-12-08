@@ -1,0 +1,5 @@
+rospkg
+numpy
+matplotlib
+scipy
+airsim
