@@ -14,6 +14,7 @@ import geometry_msgs.msg as geometry_msgs
 import sensor_msgs.msg as sensor_msgs
 import active_slam.msg as active_slam_msgs
 import visualization_msgs.msg as visualization_msgs
+import std_msgs.msg as std_msgs
 
 from active_slam.segment_slam.segment_slam import SegmentSLAM
 
@@ -34,6 +35,10 @@ class SegmentSLAMNode():
         self.badly_behaved_ids = []
         self.obj_colors = dict()
         
+        # subscribe to /first_goal_reached topic
+        self.is_first_goal_reached = False
+        self.first_goal_reached_sub = rospy.Subscriber("/first_goal_reached", std_msgs.Bool, self.first_goal_reached_cb)
+
         # ros subscribers
         self.meas_sub = rospy.Subscriber("measurement_packet", active_slam_msgs.MeasurementPacket, callback=self.meas_packet_cb, queue_size=5)
 
@@ -42,10 +47,18 @@ class SegmentSLAMNode():
         self.opt_obj_pub = rospy.Publisher("optimized_objects", visualization_msgs.MarkerArray, queue_size=5)
         self.graph_pub = rospy.Publisher("factor_graph", active_slam_msgs.Graph, queue_size=5)
 
+    def first_goal_reached_cb(self, msg):
+        self.is_first_goal_reached = msg.data
+
     def meas_packet_cb(self, packet: active_slam_msgs.MeasurementPacket):
         """
         Called every time a new measurement packet is published
         """
+
+        # this is a hack to make sure the first goal is reached before we start
+        if not self.is_first_goal_reached:
+            return
+
         # TODO: the message setup does not make this super clear that the first incremental pose
         # is actually used as the initial pose.
         if packet.sequence == 0:
@@ -147,7 +160,7 @@ class SegmentSLAMNode():
             
         for obj_id in self.slam.object_ids:
             new_node = active_slam_msgs.GraphNode()
-            new_node.id = active_slam_msgs.GraphNodeID(ord('o'), i)
+            new_node.id = active_slam_msgs.GraphNodeID(ord('o'), obj_id)
             position = result.atPoint3(self.slam.o(obj_id))
             new_node.position.x, new_node.position.y, new_node.position.z = position
             graph_msg.nodes.append(new_node)
