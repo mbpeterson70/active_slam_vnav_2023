@@ -147,7 +147,7 @@ class SegmentSLAMNode():
             
         for obj_id in self.slam.object_ids:
             new_node = active_slam_msgs.GraphNode()
-            new_node.id = active_slam_msgs.GraphNodeID(ord('o'), i)
+            new_node.id = active_slam_msgs.GraphNodeID(ord('o'), obj_id)
             position = result.atPoint3(self.slam.o(obj_id))
             new_node.position.x, new_node.position.y, new_node.position.z = position
             graph_msg.nodes.append(new_node)
