@@ -79,7 +79,7 @@ class SegmentSLAM():
             try:
                 self.initial_guess.insert(self.o(object_id), gtsam.Point3(initial_guess))
             except:
-                print("SegmentSLAM Warning: Initial guess for oject may already exis")
+                print("SegmentSLAM Warning: Initial guess for object may already exist")
 
     def triangulate_object_init_guess(self, pixels: list, pixel_std_dev: float, pose_idxs: list):
         camera_poses = []
@@ -108,3 +108,30 @@ class SegmentSLAM():
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)
         result = optimizer.optimize()
         return result
+    
+    def remove_object(self, object_id):
+        # for something in range(2):
+        #     print(gtsam.VariableIndex(self.graph))
+        i = 0
+        num_factors = 0
+        to_remove = []
+        while num_factors < self.graph.nrFactors():
+            if self.graph.exists(i):
+                num_factors += 1
+            else:
+                i += 1
+                continue
+            factor = self.graph.at(i)
+            if len(factor.keys()) != 2:
+                i += 1
+                continue
+            for k in factor.keys():
+                if gtsam.Symbol(k).chr() == ord('o') and gtsam.Symbol(k).index() == object_id:
+                    to_remove.append(i)
+                    break
+            i += 1
+        to_remove.reverse()
+        # print(f"Found {len(to_remove)} factors to remove")
+        for el in to_remove:
+            self.graph.remove(el)
+        return
