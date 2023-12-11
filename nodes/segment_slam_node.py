@@ -203,9 +203,8 @@ class SegmentSLAMNode():
                 obj_num = int(variable[1:])
                 rospy.logwarn(f"Object {obj_num} may have caused graph to become indeterminant. " + 
                               "Attempting to resolve without object.")
-                self.slam.remove_object(obj_num)
-                self.badly_behaved_ids.append(obj_num)
-                self.slam.object_ids.remove(obj_num)
+                deleted_ids = self.slam.remove_object(obj_num)
+                self.badly_behaved_ids += deleted_ids
             else:
                 raise ex
         else:
