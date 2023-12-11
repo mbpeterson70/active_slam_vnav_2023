@@ -62,8 +62,9 @@ class SegmentSLAM():
             factor = gtsam.BetweenFactorPose3(self.x(pre_idx), self.x(self.pose_idx), 
                                               gtsam.Pose3(T_relative), noise)
             self.graph.push_back(factor)
-            self.pose_chain.append(T_relative @ self.pose_chain[pre_idx])
-            # self.pose_chain.append(self.pose_chain[pre_idx] @ T_relative)
+            # self.pose_chain.append(T_relative @ self.pose_chain[pre_idx])
+            # This was wrong originally, fixed, order should be right now
+            self.pose_chain.append(self.pose_chain[pre_idx] @ T_relative)
             self.initial_guess.insert(self.x(self.pose_idx), gtsam.Pose3(self.pose_chain[-1]))
     
     def add_segment_measurement(self, object_id, center_pixel, pixel_std_dev, initial_guess=None, pose_idx=None):
@@ -80,7 +81,8 @@ class SegmentSLAM():
             try:
                 self.initial_guess.insert(self.o(object_id), gtsam.Point3(initial_guess))
             except:
-                print("SegmentSLAM Warning: Initial guess for object may already exist")
+                # print("SegmentSLAM Warning: Initial guess for object may already exist")
+                pass
 
     def triangulate_object_init_guess(self, pixels: list, pixel_std_dev: float, pose_idxs: list):
         camera_poses = []
@@ -108,8 +110,8 @@ class SegmentSLAM():
     def solve(self, reset_init_guess=True):
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)
         result = optimizer.optimize()
-        # if reset_init_guess:
-        #     self.use_solution_as_init_guess(result)
+        if reset_init_guess:
+            self.use_solution_as_init_guess(result)
         return result
     
     def remove_object(self, object_id):
@@ -149,6 +151,8 @@ class SegmentSLAM():
 
         return to_remove
     
-    # def use_solution_as_init_guess(self, solution):
-    #     for i in range(len(self.pose_chain)):
-    #         position = solution.atPose3(self.x(i)).matrix()
+    def use_solution_as_init_guess(self, solution):
+        for i in range(len(self.pose_chain)):
+            self.pose_chain[i] = solution.atPose3(self.x(i)).matrix()
+        
+        self.initial_guess = solution
