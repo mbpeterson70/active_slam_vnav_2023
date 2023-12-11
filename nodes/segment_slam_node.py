@@ -121,6 +121,7 @@ class SegmentSLAMNode():
                 import time
                 start_t = time.time()
                 result = self.slam.solve()
+                marginals = gtsam.Marginals(self.slam.graph, result)
                 print(f"TOTAL TIME: {time.time() - start_t}")
                 break
             except Exception as ex:
@@ -134,19 +135,21 @@ class SegmentSLAMNode():
         # print(gtsam.VariableIndex(self.slam.graph).find(self.slam.x(0)))
         # print(gtsam.VariableIndex(self.slam.graph).__dir__())
 
-        self.publish_graph(result)
+        self.publish_graph(result, marginals)
         self.publish_optimized_path(result)
         self.publish_optimized_objects(result)
 
         return
     
-    def publish_graph(self, result):
+    def publish_graph(self, result, marginals):
         graph_msg = active_slam_msgs.Graph()
         for i in range(len(self.slam.pose_chain)):
             new_node = active_slam_msgs.GraphNode()
             new_node.id = active_slam_msgs.GraphNodeID(ord('x'), i)
             position = result.atPose3(self.slam.x(i)).matrix()[:3,3]
             new_node.position.x, new_node.position.y, new_node.position.z = position
+            new_node.covariance = marginals.marginalCovariance(
+                self.slam.x(i))[3:6,3:6].reshape(-1).tolist() # translation piece
             # TODO: send marginal covariance
             graph_msg.nodes.append(new_node)
             
@@ -155,6 +158,8 @@ class SegmentSLAMNode():
             new_node.id = active_slam_msgs.GraphNodeID(ord('o'), obj_id)
             position = result.atPoint3(self.slam.o(obj_id))
             new_node.position.x, new_node.position.y, new_node.position.z = position
+            new_node.covariance = marginals.marginalCovariance(
+                self.slam.o(obj_id)).reshape(-1).tolist()
             graph_msg.nodes.append(new_node)
             
         # populate edges

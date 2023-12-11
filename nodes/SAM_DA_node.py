@@ -186,7 +186,7 @@ class SAM_DA_node:
                     segmentMeasurement.center = Pose2D(x=px_coords[0], y=px_coords[1], theta=0)
                     segmentMeasurement.sequence = np.int32(frame) 
                     # TODO: make rosparam pixel covariance
-                    segmentMeasurement.covariance = np.diag([10., 10.]).reshape(-1)
+                    segmentMeasurement.covariance = np.diag([3., 3.]).reshape(-1)
                     # segmentMeasurement.latest_sift = sift
                     packet.segments.append(segmentMeasurement)
 
@@ -202,7 +202,7 @@ class SAM_DA_node:
                 segmentMeasurement.center = Pose2D(x=current_px_coords[0], y=current_px_coords[1], theta=0)
                 segmentMeasurement.sequence = np.int32(counter) 
                 # TODO: make rosparam pixel covariance
-                segmentMeasurement.covariance = np.diag([10., 10.]).reshape(-1)
+                segmentMeasurement.covariance = np.diag([3., 3.]).reshape(-1)
                 # segmentMeasurement.latest_sift = current_sift
                 packet.segments.append(segmentMeasurement)
 
