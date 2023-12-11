@@ -14,7 +14,6 @@ import geometry_msgs.msg as geometry_msgs
 import sensor_msgs.msg as sensor_msgs
 import active_slam.msg as active_slam_msgs
 import visualization_msgs.msg as visualization_msgs
-import std_msgs.msg as std_msgs
 
 from active_slam.segment_slam.segment_slam import SegmentSLAM
 
@@ -35,10 +34,6 @@ class SegmentSLAMNode():
         self.badly_behaved_ids = []
         self.obj_colors = dict()
         
-        # subscribe to /first_goal_reached topic
-        self.is_first_goal_reached = False
-        self.first_goal_reached_sub = rospy.Subscriber("/first_goal_reached", std_msgs.Bool, self.first_goal_reached_cb)
-
         # ros subscribers
         self.meas_sub = rospy.Subscriber("measurement_packet", active_slam_msgs.MeasurementPacket, callback=self.meas_packet_cb, queue_size=5)
 
@@ -47,18 +42,10 @@ class SegmentSLAMNode():
         self.opt_obj_pub = rospy.Publisher("optimized_objects", visualization_msgs.MarkerArray, queue_size=5)
         self.graph_pub = rospy.Publisher("factor_graph", active_slam_msgs.Graph, queue_size=5)
 
-    def first_goal_reached_cb(self, msg):
-        self.is_first_goal_reached = msg.data
-
     def meas_packet_cb(self, packet: active_slam_msgs.MeasurementPacket):
         """
         Called every time a new measurement packet is published
         """
-
-        # this is a hack to make sure the first goal is reached before we start
-        if not self.is_first_goal_reached:
-            return
-
         # TODO: the message setup does not make this super clear that the first incremental pose
         # is actually used as the initial pose.
         if packet.sequence == 0:
@@ -101,6 +88,7 @@ class SegmentSLAMNode():
                     pose_idxs=[sm.sequence for sm in segment_measurements]
                 )
             except:
+                print(f"Object {seg_id} triangulation failed! Ignoring...")
                 # print([np.array([sm.center.x, sm.center.y]) for sm in segment_measurements])
                 # print([sm.sequence for sm in segment_measurements])
                 # for seq in [sm.sequence for sm in segment_measurements]:
@@ -128,14 +116,18 @@ class SegmentSLAMNode():
                     pose_idx=sm.sequence
                 )
 
-        try:
-            import time
-            start_t = time.time()
-            result = self.slam.solve()
-            print(f"TOTAL TIME: {time.time() - start_t}")
-        except Exception as ex:
-            print(gtsam.VariableIndex(self.slam.graph))
-            raise ex
+        for i in range(10):
+            try:
+                import time
+                start_t = time.time()
+                result = self.slam.solve()
+                print(f"TOTAL TIME: {time.time() - start_t}")
+                break
+            except Exception as ex:
+                # print(ex.args)
+                self.handle_gtsam_exception(ex)
+                # print(gtsam.VariableIndex(self.slam.graph))
+                continue
         # print("GOT A RESULT")
         # print(result)
         # print(gtsam.VariableIndex(self.slam.graph))
@@ -167,7 +159,13 @@ class SegmentSLAMNode():
             
         # populate edges
         i = 0
-        while self.slam.graph.exists(i):
+        num_factors = 0
+        while num_factors < self.slam.graph.nrFactors():
+            if self.slam.graph.exists(i):
+                num_factors += 1
+            else:
+                i += 1
+                continue
             factor = self.slam.graph.at(i)
             i += 1
             if len(factor.keys()) != 2:
@@ -197,6 +195,20 @@ class SegmentSLAMNode():
         for obj_id in self.slam.object_ids:
             marker_array.markers.append(self.get_object_marker(obj_id, result.atPoint3(self.slam.o(obj_id))))
         self.opt_obj_pub.publish(marker_array)
+        
+    def handle_gtsam_exception(self, ex):
+        if "Indeterminant linear system" in ex.args[0]:
+            variable = ex.args[0].split('Symbol: ')[1].split(').')[0].strip()
+            if variable[0] == 'o':
+                obj_num = int(variable[1:])
+                rospy.logwarn(f"Object {obj_num} may have caused graph to become indeterminant. " + 
+                              "Attempting to resolve without object.")
+                deleted_ids = self.slam.remove_object(obj_num)
+                self.badly_behaved_ids += deleted_ids
+            else:
+                raise ex
+        else:
+            raise ex
     
     def get_object_marker(self, obj_id, position):
 
