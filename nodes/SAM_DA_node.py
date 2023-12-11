@@ -88,6 +88,7 @@ class SAM_DA_node:
         # initialize last image and pose
         self.last_image = None
         self.last_pose = None
+        self.noise_amount = 0.1
 
     # Callback for first goal reached
     def first_goal_reached_cb(self, msg):
@@ -122,9 +123,30 @@ class SAM_DA_node:
         if keyframe == None:
             keyframe = 0
 
+        # T 2 pose msg
+        pose_without_noise = T_2_pose_msg(T)
+
+        # multivariate random normal distribution for noise
+        mean = [0,0,0,0,0,0]
+        noise_amount = self.noise_amount
+        cov = np.diag([noise_amount**2, noise_amount**2, noise_amount**2, noise_amount**2, noise_amount**2, noise_amount**2])
+        noise = np.random.multivariate_normal(mean, cov, 1).reshape(-1)
+
+        # add noise to pose msg
+        pose_with_noise = PoseWithCovariance()
+
+        pose_with_noise.pose.orientation.x = pose_without_noise.orientation.x + noise[0]
+        pose_with_noise.pose.orientation.y = pose_without_noise.orientation.y + noise[1]
+        pose_with_noise.pose.orientation.z = pose_without_noise.orientation.z + noise[2]
+        pose_with_noise.pose.position.x = pose_without_noise.position.x + noise[3]
+        pose_with_noise.pose.position.y = pose_without_noise.position.y + noise[4]
+        pose_with_noise.pose.position.z = pose_without_noise.position.z + noise[5]
+
+        T_with_noise = pose_msg_2_T(pose_with_noise.pose)
+
         # image and pose in BlobSAMNode
         self.blob_sam_node.image = img
-        self.blob_sam_node.T = T
+        self.blob_sam_node.T = T_with_noise
         self.blob_sam_node.filename = self.blob_sam_node.blobTracker.latestKeyframeIndex
         self.blob_sam_node.blobTracker = self.blobTracker
 
@@ -142,12 +164,12 @@ class SAM_DA_node:
         if self.last_pose is None:
             packet.incremental_pose = PoseWithCovariance()
             # TODO: right now sending the absolute pose as the first message, a bit hacky
-            packet.incremental_pose.pose = T_2_pose_msg(T)
-            packet.incremental_pose.covariance = np.diag([np.deg2rad(.01)**2, np.deg2rad(.01)**2, np.deg2rad(.01)**2, .001**2, .001**2, .001**2]).reshape(-1)
+            packet.incremental_pose.pose = pose_with_noise
+            packet.incremental_pose.covariance = noise
         else:
             packet.incremental_pose = PoseWithCovariance()
-            packet.incremental_pose.pose = T_2_pose_msg(np.linalg.inv(self.last_pose) @ T)
-            packet.incremental_pose.covariance = np.diag([np.deg2rad(.01)**2, np.deg2rad(.01)**2, np.deg2rad(.01)**2, .001**2, .001**2, .001**2]).reshape(-1)
+            packet.incremental_pose.pose = T_2_pose_msg(np.linalg.inv(self.last_pose) @ T_with_noise)
+            packet.incremental_pose.covariance = noise
 
         for track in self.blobTracker.tracks:
 
@@ -209,7 +231,7 @@ class SAM_DA_node:
         # print(packet)
         self.meas_pub.publish(packet)
 
-        self.last_pose = T
+        self.last_pose = T_with_noise
         self.counter = self.counter + 1
 
         return
