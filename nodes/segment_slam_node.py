@@ -159,7 +159,13 @@ class SegmentSLAMNode():
             
         # populate edges
         i = 0
-        while self.slam.graph.exists(i):
+        num_factors = 0
+        while num_factors < self.slam.graph.nrFactors():
+            if self.slam.graph.exists(i):
+                num_factors += 1
+            else:
+                i += 1
+                continue
             factor = self.slam.graph.at(i)
             i += 1
             if len(factor.keys()) != 2:
@@ -199,6 +205,7 @@ class SegmentSLAMNode():
                               "Attempting to resolve without object.")
                 self.slam.remove_object(obj_num)
                 self.badly_behaved_ids.append(obj_num)
+                self.slam.object_ids.remove(obj_num)
             else:
                 raise ex
         else:
