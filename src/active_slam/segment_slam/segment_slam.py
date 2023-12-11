@@ -63,6 +63,7 @@ class SegmentSLAM():
                                               gtsam.Pose3(T_relative), noise)
             self.graph.push_back(factor)
             self.pose_chain.append(T_relative @ self.pose_chain[pre_idx])
+            # self.pose_chain.append(self.pose_chain[pre_idx] @ T_relative)
             self.initial_guess.insert(self.x(self.pose_idx), gtsam.Pose3(self.pose_chain[-1]))
     
     def add_segment_measurement(self, object_id, center_pixel, pixel_std_dev, initial_guess=None, pose_idx=None):
@@ -104,9 +105,11 @@ class SegmentSLAM():
             self.object_id_mapping[obj_id] = obj_id
             self.object_ids.append(obj_id)
             
-    def solve(self):
+    def solve(self, reset_init_guess=True):
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)
         result = optimizer.optimize()
+        # if reset_init_guess:
+        #     self.use_solution_as_init_guess(result)
         return result
     
     def remove_object(self, object_id):
@@ -134,4 +137,18 @@ class SegmentSLAM():
         # print(f"Found {len(to_remove)} factors to remove")
         for el in to_remove:
             self.graph.remove(el)
-        return
+
+        # remove from object id mapping
+        self.object_ids.remove(object_id)
+        to_remove = []
+        for x, y in self.object_id_mapping.items():
+            if y == object_id:
+                to_remove.append(x)
+        for el in to_remove:
+            del self.object_id_mapping[el]
+
+        return to_remove
+    
+    # def use_solution_as_init_guess(self, solution):
+    #     for i in range(len(self.pose_chain)):
+    #         position = solution.atPose3(self.x(i)).matrix()
