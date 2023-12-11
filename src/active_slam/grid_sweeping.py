@@ -1,7 +1,8 @@
 """
 Grid based sweep planner
 
-author: Atsushi Sakai
+author: Kota Kondo 
+ref: https://github.com/AtsushiSakai/PythonRobotics
 """
 
 import math

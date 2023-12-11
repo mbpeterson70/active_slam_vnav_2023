@@ -62,9 +62,14 @@ class SegmentSLAM():
             factor = gtsam.BetweenFactorPose3(self.x(pre_idx), self.x(self.pose_idx), 
                                               gtsam.Pose3(T_relative), noise)
             self.graph.push_back(factor)
+<<<<<<< HEAD
             # self.pose_chain.append(T_relative @ self.pose_chain[pre_idx])
             # This was wrong originally, fixed, order should be right now
             self.pose_chain.append(self.pose_chain[pre_idx] @ T_relative)
+=======
+            self.pose_chain.append(T_relative @ self.pose_chain[pre_idx])
+            # self.pose_chain.append(self.pose_chain[pre_idx] @ T_relative)
+>>>>>>> main
             self.initial_guess.insert(self.x(self.pose_idx), gtsam.Pose3(self.pose_chain[-1]))
     
     def add_segment_measurement(self, object_id, center_pixel, pixel_std_dev, initial_guess=None, pose_idx=None):

@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 import rospy
-import math       
+import math
+import numpy as np
 from active_slam.msg import Map
 from active_slam.grid_map import GridMapper
 from airsim_ros_pkgs.msg import VelCmd
@@ -12,7 +13,8 @@ from scipy.spatial.transform import Rotation as Rot
 import airsim
 import threading
 from active_slam.grid_sweeping import planning
-
+import active_slam.msg as active_slam_msgs
+import std_msgs.msg as std_msgs
 
 class Planner:
     
@@ -24,6 +26,7 @@ class Planner:
         self.coverage_area_size = rospy.get_param('~coverage_area_size', 100.0)
         self.exploration_goal_points_resolution = rospy.get_param('~exploration_goal_points_resolution', 10.0)
         self.exploration_velocity = rospy.get_param('~exploration_velocity', 5.0)
+        self.LOG_DET_L_THRESHOLD = rospy.get_param('~log_det_l_threshold', 10.0)
         self.GOAL_THRESHOLD = 1.0
 
         # drone client
@@ -37,9 +40,6 @@ class Planner:
 
         # grid mapper
         self.grid_mapper = GridMapper(self.coverage_area_size)
-
-        # path planner
-        # self.path_planner = 
 
         # store robot's pose
         self.robot_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0 , 1.0]
@@ -77,6 +77,29 @@ class Planner:
         self.drone_client.takeoffAsync().join()
         self.drone_client_lock.release()
 
+        # flag for the first goal reached 
+        self.is_first_goal_reached = False
+
+        # publish if the first goal has been reached (boolean)
+        self.first_goal_reached_pub = rospy.Publisher('first_goal_reached', std_msgs.Bool, queue_size=1)
+
+        # save pose nodes' poses
+        self.pose_nodes_poses = {}
+
+        # initialize the total number of nodes/pose nodes/object nodes (for factor graph)
+        self.total_num_nodes = 0
+        self.total_num_pose_nodes = 0
+        self.total_num_object_nodes = 0
+
+        # initlaize the log determinant of the reduced Laplacian matrix
+        self.log_det_L_reduced = 0.0
+
+        # flag to check if the node revisit is activated
+        self.is_node_revisit_activated = False
+
+        # subscribe to the topic /factor_graph
+        self.sub_factor_graph = rospy.Subscriber('factor_graph', active_slam_msgs.Graph, self.factor_graph_cb)
+
         # timer for robot pose update
         self.timer_for_robot_pose_update = rospy.Timer(rospy.Duration(0.1), self.robot_pose_cb)
         
@@ -84,10 +107,164 @@ class Planner:
         self.timer_for_replanning = rospy.Timer(rospy.Duration(0.1), self.replanning_cb)
 
         # timer for map_visualizer
-        self.timer_for_map_visualizer = rospy.Timer(rospy.Duration(1.0), self.map_visualizer_cb)
+        # self.timer_for_map_visualizer = rospy.Timer(rospy.Duration(1.0), self.map_visualizer_cb)
 
         # timer for goal reached checker
         self.timer_for_goal_reached_checker = rospy.Timer(rospy.Duration(1.0), self.goal_reached_checker_cb)
+
+        # timer for checking if the log determinant of reduced Laplacian matrix is small enough
+        # self.timer_for_checking_reduced_Laplacian_matrix = rospy.Timer(rospy.Duration(1.0), self.check_reduced_Laplacian_matrix_cb)
+
+    # callback function for the timer for checking if the log determinant of reduced Laplacian matrix is small enough
+    def check_reduced_Laplacian_matrix_cb(self, event):
+        """
+        This function checks if the log determinant of reduced Laplacian matrix is small enough
+        """
+
+        print("log_det_L_reduced: ", self.log_det_L_reduced)
+
+        if self.log_det_L_reduced > self.LOG_DET_L_THRESHOLD:
+
+            print("log_det_L_reduced is not small enough, so we need to have a loop closure")
+
+            # get the best factor graph node to visit
+            best_node_to_visit = self.get_best_factor_graph_node_to_visit()
+            
+            # if there is a node to visit to reduce the log determinant of the reduced Laplacian matrix
+            if best_node_to_visit is not None:
+    
+                # get the pose of the best node to visit
+                best_node_to_visit_pose = self.pose_nodes_poses[best_node_to_visit]
+
+                # update the goal pose
+                self.goal_pose = best_node_to_visit_pose
+
+                # update the goal_idx (we need to make sure the agent will visit the current goal after visiting the best node to visit)
+                self.goal_idx = self.goal_idx - 1
+
+                # shutdown the check_reduced_Laplacian_matrix timer
+                self.is_node_revisit_activated = True
+                self.timer_for_checking_reduced_Laplacian_matrix.shutdown()
+
+            # if there is no node to visit to reduce the log determinant of the reduced Laplacian matrix
+            else:
+                print("no node to visit to reduce the log determinant of the reduced Laplacian matrix")
+
+
+    # callback function for the topic /factor_graph
+    def factor_graph_cb(self, msg):
+        """
+        This function is called when a new factor graph is published and creates Laplacian matrix (and reduced Laplacian matrix)
+        """
+        
+        # get the total number of nodes/pose nodes/object nodes
+        num_pose_nodes = 0
+        num_object_nodes = 0
+        pose_nodes_reindexed = {}
+        object_nodes_reindexed = {}
+        for node in msg.nodes:
+            
+            # if the node is a pose node
+            if node.id.type == 120:
+                # reindex the node
+                pose_nodes_reindexed[node.id.index] = num_pose_nodes
+                # save the pose node's pose
+                self.pose_nodes_poses[node.id.index] = [node.position.x, node.position.y, node.position.z]
+                num_pose_nodes = num_pose_nodes + 1
+
+            # if the node is an object node
+            elif node.id.type == 111:
+                # reindex the node (this is necessary because the (object) node id is all over the place) 
+                object_nodes_reindexed[node.id.index] = num_object_nodes
+                num_object_nodes = num_object_nodes + 1
+
+        # shift the object node indices by the number of pose nodes
+        for key in object_nodes_reindexed:
+            object_nodes_reindexed[key] = object_nodes_reindexed[key] + num_pose_nodes
+
+        # update the total number of nodes/pose nodes/object nodes
+        self.total_num_nodes = num_pose_nodes + num_object_nodes
+        self.total_num_pose_nodes = num_pose_nodes
+        self.total_num_object_nodes = num_object_nodes
+
+        # first create the degree matrix
+        D = np.zeros((self.total_num_nodes, self.total_num_nodes))
+        for node in msg.nodes: # for each node
+            for edge in msg.edges: # for each edge
+                for k in range(2): # for each node in the edge
+
+                    # if the node is a pose node
+                    if node.id.type == 120:
+                        node_index = pose_nodes_reindexed[node.id.index]
+                    # if the node is an object node
+                    elif node.id.type == 111:
+                        node_index = object_nodes_reindexed[node.id.index]
+                    
+                    # if the node listed in the edge is a pose node
+                    if edge.edge[k].type == 120:
+                        edge_index = pose_nodes_reindexed[edge.edge[k].index]
+                    # if the node listed in the edge is an object node
+                    elif edge.edge[k].type == 111:
+                        edge_index = object_nodes_reindexed[edge.edge[k].index]
+
+                    # add 1 to the degree matrix if the node is listed in the edge
+                    if edge_index == node_index:
+                        D[node_index, node_index] = D[node_index, node_index] + 1
+
+        # then create the adjacency matrix
+        A = np.zeros((self.total_num_nodes, self.total_num_nodes))
+        for edge in msg.edges:
+            
+            # first node in the edge
+            if edge.edge[0].type == 120:
+                node_index_0 = pose_nodes_reindexed[edge.edge[0].index]
+            elif edge.edge[0].type == 111:
+                node_index_0 = object_nodes_reindexed[edge.edge[0].index]
+            
+            # second node in the edge
+            if edge.edge[1].type == 120:
+                node_index_1 = pose_nodes_reindexed[edge.edge[1].index]
+            elif edge.edge[1].type == 111:
+                node_index_1 = object_nodes_reindexed[edge.edge[1].index]
+            
+            # set 1 to the adjacency matrix if the edge exists
+            A[node_index_0, node_index_1] = 1
+            A[node_index_1, node_index_0] = 1
+        
+        # create the Laplacian matrix
+        L = D - A
+
+        # create the reduced Laplacian matrix
+        L_reduced = L[1:, 1:] # remove the first row and the first column
+
+        # segment_slam used to send bad graph messages, so we needed to filter out zero row and zero column from the reduced Laplacian matrix
+        # filter out zero row and zero column from the reduced Laplacian matrix
+        # L_reduced = self.filter_out_zero_row_and_zero_column(L_reduced)
+        self.L_reduced = np.copy(L_reduced)
+
+        # get the log determinant of the reduced Laplacian matrix
+        self.log_det_L_reduced = np.linalg.slogdet(L_reduced)[1]
+
+    # function that filters out zero row and zero column from a matrix
+    def filter_out_zero_row_and_zero_column(self, matrix):
+        """
+        This function filters out zero row and zero column from a matrix
+        """
+
+        # get the indices of zero rows and zero columns
+        zero_row_indices = []
+        zero_column_indices = []
+        for i in range(matrix.shape[0]):
+            if np.all(matrix[i, :] == 0):
+                zero_row_indices.append(i)
+            if np.all(matrix[:, i] == 0):
+                zero_column_indices.append(i)
+        
+        # filter out zero rows and zero columns
+        matrix = np.delete(matrix, zero_row_indices, axis=0)
+        matrix = np.delete(matrix, zero_column_indices, axis=1)
+
+        return matrix
 
     # callback function for the topic /map
     def map_cb(self, msg):
@@ -112,22 +289,16 @@ class Planner:
         self.robot_pose[5] = robot_pose.orientation.z_val
         self.robot_pose[6] = robot_pose.orientation.w_val
 
-        # print the robot's pose
-        print("robot_pose: ", self.robot_pose)
-
         # update the robot's pose
         self.grid_mapper.update_robot_pose(self.robot_pose.copy())
 
     # callback function for the replanning timer
     def replanning_cb(self, event):
 
-        # TODO: first, we need to find the waypoint using frontier-based exploration
-
-        # second, we pass the goal to the client
         # TODO: there's no collision avoidance here
-        print("goal_pose: ", self.goal_pose)
         self.drone_client_lock.acquire()
-        self.drone_client.moveToPositionAsync(self.goal_pose[0], self.goal_pose[1], self.goal_pose[2], self.exploration_velocity).join()
+        vel = self.exploration_velocity if self.is_first_goal_reached else 10.0 # use faster velocity to get to the first goal point
+        self.drone_client.moveToPositionAsync(self.goal_pose[0], self.goal_pose[1], self.goal_pose[2], vel).join()
         self.drone_client_lock.release()
 
     # callback function for the map visualizer timer
@@ -148,6 +319,18 @@ class Planner:
             # if the distance is less than GOAL_THRESHOLD, we consider the goal has been reached
             if dist < self.GOAL_THRESHOLD:
 
+                # if this is the first goal reached, we set the flag to True
+                if not self.is_first_goal_reached:
+                    self.is_first_goal_reached = True
+
+                    # send a message to the topic /first_goal_reached
+                    msg = std_msgs.Bool()
+                    msg.data = True
+                    self.first_goal_reached_pub.publish(msg)
+
+                    # start the timer for checking if the log determinant of reduced Laplacian matrix is small enough
+                    self.timer_for_checking_reduced_Laplacian_matrix = rospy.Timer(rospy.Duration(1.0), self.check_reduced_Laplacian_matrix_cb)
+
                 # if the goal has been reached, we update the goal
                 self.goal_idx = self.goal_idx + 1
                 
@@ -159,6 +342,81 @@ class Planner:
                 self.goal_pose = self.unexplored_goal_poses[self.goal_idx]
                 print("goal reached, new goal: ", self.goal_pose)
                 print("goal_idx: ", self.goal_idx)
+
+                # if the node revisit is activated and goal has been reached, then we restart the check_reduced_Laplacian_matrix timer
+                if self.is_node_revisit_activated:
+                    self.timer_for_checking_reduced_Laplacian_matrix = rospy.Timer(rospy.Duration(1.0), self.check_reduced_Laplacian_matrix_cb)
+                    self.is_node_revisit_activated = False
+    
+    # function to get the best factor graph node to visit
+    def get_best_factor_graph_node_to_visit(self):
+
+        """
+        This function returns the best factor graph node to the visit set
+        """
+
+        # get the local copy of the reduced Laplacian matrix
+        L_reduced_orig = np.copy(self.L_reduced)
+
+        # get the log determinant of the reduced Laplacian matrix
+        log_det_L_reduced_orig = np.linalg.slogdet(L_reduced_orig)[1]
+        print("log_det_L_reduced_orig: ", log_det_L_reduced_orig)
+
+        log_det_L_reduced = log_det_L_reduced_orig
+
+        # we insert each pose node in the reduced Laplacian matrix (between the last pose node and the first object node)
+        for i in range(self.total_num_pose_nodes-1): # because connecting the immediate previous pose node is not closed-loop
+
+            L_reduced = np.copy(L_reduced_orig)
+
+            # copy the node-object connection of the chosen column (once you closed the loop you will see the same objects)
+            node_to_insert_column = np.zeros(L_reduced.shape[0])
+
+            node_to_insert_column[self.total_num_pose_nodes:] = L_reduced[self.total_num_pose_nodes:, i]
+
+            # adjacency matrix part (this potentially new pose node is connected to the previous pose node and the closed-loop pose node)
+            node_to_insert_column[i] = -1 # L = D - A, so we need to subtract 1
+            node_to_insert_column[self.total_num_pose_nodes-1] = -1 # L = D - A, so we need to subtract 1
+
+            # create the row copy of the chosen column
+            node_to_insert_row = node_to_insert_column.T
+
+            # add 1 to the closed-loop pose node's degree (because the closed-loop pose node will be connected to the new pose)
+            L_reduced[i, i] = L_reduced[i, i] + 1
+
+            # add 1 to the previouw pose node's degree (because the previous pose node will be connected to the new pose)
+            L_reduced[self.total_num_pose_nodes-1, self.total_num_pose_nodes-1] = L_reduced[self.total_num_pose_nodes-1, self.total_num_pose_nodes-1] + 1
+
+            # copy the closed-loop pose nodes' degree matrix (because we the new pose will be connected to the previous pose and the closed-loop pose)
+            node_to_insert_row = np.insert(node_to_insert_row, self.total_num_pose_nodes, L_reduced[i, i], axis=0)
+            
+            # add 1 to the object node's degree that is connected to the new pose node (because the object node will be connected to the new pose)
+            for j in range(self.total_num_pose_nodes, L_reduced.shape[0]):
+                if L_reduced[j, i] == -1:
+                    L_reduced[j, j] = L_reduced[j, j] + 1
+
+            # insert the chosen column and row
+            L_reduced = np.insert(L_reduced, self.total_num_pose_nodes, node_to_insert_column, axis=1)
+            L_reduced = np.insert(L_reduced, self.total_num_pose_nodes, node_to_insert_row, axis=0)
+
+            # get the log determinant of the new reduced Laplacian matrix
+            tmp_log_det_L_reduced = np.linalg.slogdet(L_reduced)[1]
+
+            # print out this possible node to visit
+            print(f"node index {i}: tmp_log_det_L_reduced: {tmp_log_det_L_reduced}")
+
+            # if the log determinant of the new reduced Laplacian matrix is smaller than the best log determinant, we update the best log determinant
+            if tmp_log_det_L_reduced < log_det_L_reduced:
+                log_det_L_reduced = tmp_log_det_L_reduced
+                best_node_to_insert = i
+        
+        # check if we found the best node to insert
+        if log_det_L_reduced < log_det_L_reduced_orig:
+            print("best_node_to_insert: ", best_node_to_insert)
+            return best_node_to_insert
+        else:
+            print("no node to visit to reduce the log determinant of the reduced Laplacian matrix")
+            return None
         
 if __name__ == '__main__':
     rospy.init_node('planner', anonymous=True)
