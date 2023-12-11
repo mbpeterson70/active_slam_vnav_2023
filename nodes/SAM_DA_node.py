@@ -13,6 +13,7 @@ from geometry_msgs.msg import Pose2D, PoseWithCovariance
 import nav_msgs.msg as nav_msgs
 import sensor_msgs.msg as sensor_msgs
 import active_slam.msg as active_slam_msgs
+import std_msgs.msg as std_msgs
 
 # import rotation for pose stuff
 from scipy.spatial.transform import Rotation as Rot
@@ -57,7 +58,7 @@ class SAM_DA_node:
         # FastSAM params
         similaritymethod = 'feat'
         pathToCheckpoint = "./FastSAM/Models/FastSAM-x.pt"
-        device = "cuda"
+        device = "cpu"
         conf = 0.5
         iou = 0.9
         samModel = FastSamWrapper(pathToCheckpoint, device, conf, iou)
@@ -75,9 +76,11 @@ class SAM_DA_node:
         self.blob_sam_node = BlobSAMNode(image=None, T=None, filename=None, blobTracker=self.blobTracker)  # Instantiate BlobSAMNode class
         print("BlobSAMNode instantiated")
 
+        # subscribe to /first_goal_reached topic
+        self.first_goal_reached_sub = rospy.Subscriber("/first_goal_reached", std_msgs.Bool, self.first_goal_reached_cb)
+
         # Approximate Time Synchronizer
         self.ts = message_filters.ApproximateTimeSynchronizer(subs, queue_size=1, slop=.1)
-        self.ts.registerCallback(self.cb) # registers incoming messages to callback
 
         # ros publishers
         self.meas_pub = rospy.Publisher("measurement_packet", active_slam_msgs.MeasurementPacket, queue_size=5)
@@ -85,6 +88,13 @@ class SAM_DA_node:
         # initialize last image and pose
         self.last_image = None
         self.last_pose = None
+
+    # Callback for first goal reached
+    def first_goal_reached_cb(self, msg):
+        """
+        This function gets called when the first goal is reached.
+        """
+        self.ts.registerCallback(self.cb) # registers incoming messages to callback
 
     def cb(self, *msgs):
         """
