@@ -103,7 +103,6 @@ class SegmentSLAMNode():
         self.slam.new_objects_data_association(
             object_ids=[seg_id for seg_id in init_guesses],
             init_guesses=[init_guesses[seg_id] for seg_id in init_guesses],
-            last_pose_idxs=[np.max([sm.sequence for sm in new_segments[seg_id]]) for seg_id in init_guesses]
         )      
 
         for seg_id, segment_measurements in new_segments.items():
@@ -120,8 +119,7 @@ class SegmentSLAMNode():
             try:
                 import time
                 start_t = time.time()
-                result = self.slam.solve()
-                marginals = gtsam.Marginals(self.slam.graph, result)
+                result, marginals = self.slam.solve()
                 print(f"TOTAL TIME: {time.time() - start_t}")
                 break
             except Exception as ex:

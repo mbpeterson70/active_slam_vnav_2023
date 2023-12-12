@@ -4,6 +4,8 @@
 import gtsam
 import numpy as np
 
+from active_slam.segment_slam.global_nearest_neighbor import global_nearest_neighbor
+
 class SegmentSLAM():
     
     def __init__(self, K, distortion_params):
@@ -23,6 +25,8 @@ class SegmentSLAM():
         # Set up gtsam factor graph variables
         self.graph = gtsam.NonlinearFactorGraph()
         self.initial_guess = gtsam.Values()
+        self.last_solution = None
+        self.last_marginals = None
         
         self.cal3ds2 = gtsam.Cal3DS2(K[0,0], K[1,1], K[0,1], K[0,2], K[1,2], 
                                      distortion_params[0], distortion_params[1], distortion_params[2], distortion_params[3])
@@ -94,25 +98,57 @@ class SegmentSLAM():
         init_guess = gtsam.triangulatePoint3(camera_set, pixels_point_vec, rank_tol=1e-9, optimize=True, model=measurement_noise)
         return init_guess
     
-    def new_objects_data_association(self, object_ids, init_guesses, last_pose_idxs):
-        # Step 1: Fix the init_guesses so they are not used by only chaining together odometry
-        # instead, use optimized poses to calculate this
-
-        # Step 2: Perform data association.
+    def new_objects_data_association(self, object_ids, init_guesses, disable_data_association=False):
+        # Step 1: Perform data association.
+        if self.last_solution is not None and self.last_marginals is not None and not disable_data_association:
+            existing_pts = np.array([self.last_solution.atPoint3(self.o(obj_id)) 
+                                    for obj_id in self.object_ids]).reshape((-1,3))
+            existing_covs = np.array([self.last_marginals.marginalCovariance(self.o(obj_id))
+                                    for obj_id in self.object_ids]).reshape((-1,3,3))
+            # TODO: can I estimate the covariance somehow?
+            new_covs = np.array([np.eye(3)*1.5 for obj_id in object_ids])
+            init_guesses = np.array(init_guesses).reshape((-1,3))
+            
+            associated, unassociated = global_nearest_neighbor(
+                existing_pts,
+                init_guesses,
+                existing_covs,
+                new_covs,
+                tau=2.,
+                use_nlml=False
+            )
+            # print(object_ids)
+            # print(self.object_ids)
+            # print(unassociated)
+            # print(associated)
+            associated_ids = [(self.object_ids[i], object_ids[j]) for i, j in associated]
+            unassociated_ids = [object_ids[i] for i in unassociated]
+            
+        else:
+            associated_ids = []
+            unassociated_ids = object_ids
         
-        # Step 3: Add any segments that have been associated to existing objects to the internal
+        # Step 2: Add any segments that have been associated to existing objects to the internal
         # mapping.
-        # TODO: implement above. For now, just assume it's a new object
-        for obj_id in object_ids:
+        for obj_id in unassociated_ids:
             self.object_id_mapping[obj_id] = obj_id
             self.object_ids.append(obj_id)
+            
+        for existing_id, new_id in associated_ids:
+            print(f"Associating {new_id} with {existing_id}")
+            self.object_id_mapping[new_id] = existing_id
             
     def solve(self, reset_init_guess=True):
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)
         result = optimizer.optimize()
+        marginals = gtsam.Marginals(self.graph, result)
+        self.last_solution = result
+        self.last_marginals = marginals
+        
         if reset_init_guess:
             self.use_solution_as_init_guess(result)
-        return result
+        
+        return result, marginals
     
     def remove_object(self, object_id):
         # for something in range(2):

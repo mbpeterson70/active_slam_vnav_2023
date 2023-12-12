@@ -61,7 +61,8 @@ class SAM_DA_node:
         device = "cpu"
         conf = 0.5
         iou = 0.9
-        samModel = FastSamWrapper(pathToCheckpoint, device, conf, iou)
+        imgsz = 256
+        samModel = FastSamWrapper(pathToCheckpoint, device, conf, iou, imgsz)
 
         logger = getLogger()
 
