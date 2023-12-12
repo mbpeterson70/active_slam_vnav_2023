@@ -123,8 +123,8 @@ class SAM_DA_node:
             keyframe = 0
 
         # create a noise transformation matrix
-        pose_pos_cov = 0.1 # meters
-        pose_rot_cov = 0.1 # degrees
+        pose_pos_cov = 0.05 # meters
+        pose_rot_cov = 0.05 # degrees
         rpy_cov = np.deg2rad(pose_rot_cov)**2
         xyz_cov = pose_pos_cov**2
         noise_matrix = np.eye(4)
@@ -147,7 +147,6 @@ class SAM_DA_node:
         packet.header = img_msg.header
         packet.sequence = np.int32(counter)
 
-
         # Add relative pose measurement
         if self.last_pose is None: # for initial pose
             packet.incremental_pose = PoseWithCovariance()
@@ -156,8 +155,8 @@ class SAM_DA_node:
             packet.incremental_pose.covariance = np.diag([xyz_cov, xyz_cov, xyz_cov, rpy_cov, rpy_cov, rpy_cov]).reshape(-1)
         else:
             packet.incremental_pose = PoseWithCovariance()
-            T = T + noise_matrix
-            packet.incremental_pose.pose = T_2_pose_msg(np.linalg.inv(self.last_pose) @ T)
+            incremental_pose = np.linalg.inv(self.last_pose) @ T
+            packet.incremental_pose.pose = T_2_pose_msg(noise_matrix @ incremental_pose) # noise needs to be applied after finding the true incremental pose
             packet.incremental_pose.covariance = np.diag([xyz_cov, xyz_cov, xyz_cov, rpy_cov, rpy_cov, rpy_cov]).reshape(-1)
 
         for track in self.blobTracker.tracks:
