@@ -27,7 +27,7 @@ class SegmentSLAM():
         self.graph = gtsam.NonlinearFactorGraph()
         self.initial_guess = gtsam.Values()
         self.last_solution = None
-        self.last_marginals = None
+        self.last_obj_covs = None
         
         self.cal3ds2 = gtsam.Cal3DS2(K[0,0], K[1,1], K[0,1], K[0,2], K[1,2], 
                                      distortion_params[0], distortion_params[1], distortion_params[2], distortion_params[3])
@@ -103,10 +103,12 @@ class SegmentSLAM():
     
     def new_objects_data_association(self, object_ids, init_guesses, disable_data_association=False):
         # Step 1: Perform data association.
-        if self.last_solution is not None and self.last_marginals is not None and not disable_data_association:
-            existing_pts = np.array([self.last_solution.atPoint3(self.o(obj_id)) 
+        if self.last_solution is not None and self.last_obj_covs is not None and not disable_data_association:
+            existing_pts = np.array([(self.last_solution.atPoint3(self.o(obj_id))
+                                    # if self.last_solution.exists(self.o(obj_id)) \
+                                    )#else self.initial_guessatPoint3(self.o(obj_id)))
                                     for obj_id in self.object_ids]).reshape((-1,3))
-            existing_covs = np.array([self.last_marginals.marginalCovariance(self.o(obj_id))
+            existing_covs = np.array([self.last_obj_covs[obj_id]
                                     for obj_id in self.object_ids]).reshape((-1,3,3))
             # TODO: can I estimate the covariance somehow?
             new_covs = np.array([np.eye(3)*1.5 for obj_id in object_ids])
@@ -143,10 +145,16 @@ class SegmentSLAM():
             
     def solve(self, reset_init_guess=True):
         optimizer = gtsam.GaussNewtonOptimizer(self.graph, self.initial_guess)
-        result = optimizer.optimize()
-        marginals = gtsam.Marginals(self.graph, result)
+        try:
+            result = optimizer.optimize()
+            marginals = gtsam.Marginals(self.graph, result)
+        except Exception as ex:
+            self.last_solution = None
+            self.last_obj_covs = None
+            raise ex
+
         self.last_solution = result
-        self.last_marginals = marginals
+        self.last_obj_covs = {obj_id : marginals.marginalCovariance(self.o(obj_id)) for obj_id in self.object_ids}
         
         if reset_init_guess:
             self.use_solution_as_init_guess(result)
