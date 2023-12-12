@@ -89,6 +89,7 @@ class SAM_DA_node:
         # initialize last image and pose
         self.last_image = None
         self.last_pose = None
+        self.noise_amount = 0.1
 
     # Callback for first goal reached
     def first_goal_reached_cb(self, msg):
@@ -124,8 +125,8 @@ class SAM_DA_node:
             keyframe = 0
 
         # create a noise transformation matrix
-        pose_pos_cov = 0.05 # meters
-        pose_rot_cov = 0.05 # degrees
+        pose_pos_cov = 0.1 # meters
+        pose_rot_cov = 0.1 # degrees
         rpy_cov = np.deg2rad(pose_rot_cov)**2
         xyz_cov = pose_pos_cov**2
         noise_matrix = np.eye(4)
@@ -134,7 +135,9 @@ class SAM_DA_node:
 
         # image and pose in BlobSAMNode
         self.blob_sam_node.image = img
-        self.blob_sam_node.T = T
+        self.blob_sam_node.T = T # TODO: blob_sam is using noiseless T for now, if we switch to noisy we need
+                                 # to keep this transform separate from the one we are using to compute the incremental_pose.
+                                 # Noise should be applied to true relative pose
         self.blob_sam_node.filename = self.blob_sam_node.blobTracker.latestKeyframeIndex
         self.blob_sam_node.blobTracker = self.blobTracker
 
