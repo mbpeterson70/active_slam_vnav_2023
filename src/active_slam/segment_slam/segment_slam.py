@@ -8,13 +8,14 @@ from active_slam.segment_slam.global_nearest_neighbor import global_nearest_neig
 
 class SegmentSLAM():
     
-    def __init__(self, K, distortion_params):
+    def __init__(self, K, distortion_params, T_BC=np.eye(4)):
         """
         SegmentSLAM constructor. Sets camera parameters.
 
         Args:
             K (np.array, shape(3,3)): Camera intrinsic calibration matrix
             distortion_params (array, shape(4,)): Distortion parameters (k1, k2, p1, p2)
+            T_BC (array, shape(4,4)): Camera pose with respect to body
         """
         # internal variables
         self.pose_idx = -1
@@ -30,6 +31,7 @@ class SegmentSLAM():
         
         self.cal3ds2 = gtsam.Cal3DS2(K[0,0], K[1,1], K[0,1], K[0,2], K[1,2], 
                                      distortion_params[0], distortion_params[1], distortion_params[2], distortion_params[3])
+        self.T_BC = T_BC
 
         self.o = gtsam.symbol_shorthand.O
         self.x = gtsam.symbol_shorthand.X
@@ -78,7 +80,8 @@ class SegmentSLAM():
         
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, pixel_std_dev)
         factor = gtsam.GenericProjectionFactorCal3DS2(
-            gtsam.Point2(center_pixel), measurement_noise, self.x(pose_idx), self.o(object_id), self.cal3ds2)
+            gtsam.Point2(center_pixel), measurement_noise, self.x(pose_idx), self.o(object_id), 
+            self.cal3ds2, body_P_sensor=gtsam.Pose3(self.T_BC))
         self.graph.push_back(factor)
         
         if initial_guess is not None:
@@ -91,7 +94,7 @@ class SegmentSLAM():
     def triangulate_object_init_guess(self, pixels: list, pixel_std_dev: float, pose_idxs: list):
         camera_poses = []
         for idx in pose_idxs:
-            camera_poses.append(gtsam.PinholeCameraCal3DS2(gtsam.Pose3(self.pose_chain[idx]), self.cal3ds2))
+            camera_poses.append(gtsam.PinholeCameraCal3DS2(gtsam.Pose3(self.pose_chain[idx] @ self.T_BC), self.cal3ds2))
         camera_set = gtsam.gtsam.CameraSetCal3DS2(camera_poses)
         pixels_point_vec = gtsam.Point2Vector([gtsam.Point2(pix) for pix in pixels])
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, pixel_std_dev)
