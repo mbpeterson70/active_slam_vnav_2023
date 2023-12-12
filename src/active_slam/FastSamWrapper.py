@@ -5,14 +5,15 @@ from active_slam.SamModel import SamModel
 from active_slam.FastSAM.fastsam import *
 
 class FastSamWrapper(SamModel):
-    def __init__(self, pathToCheckpoint, device, conf, iou):
+    def __init__(self, pathToCheckpoint, device, conf, iou, imgsz):
         self.fastSamModel = FastSAM(pathToCheckpoint)
         self.device = device
         self.conf = conf
         self.iou = iou
+        self.imgsz = imgsz
     
     def segmentFrame(self, image):
-        everything_results = self.fastSamModel(image, device=self.device, retina_masks=True, imgsz=1024, conf=self.conf, iou=self.iou,)
+        everything_results = self.fastSamModel(image, device=self.device, retina_masks=True, imgsz=self.imgsz, conf=self.conf, iou=self.iou,)
         prompt_process = FastSAMPrompt(image, everything_results, device=self.device)
         segmask = prompt_process.everything_prompt()
 

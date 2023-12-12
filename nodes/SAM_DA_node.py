@@ -40,8 +40,8 @@ class SAM_DA_node:
         
         # ros subscribers
         subs = [
-            message_filters.Subscriber("/airsim_node/Multirotor/odom_local_ned", nav_msgs.Odometry),
-            message_filters.Subscriber("/airsim_node/Multirotor/front_center_custom/Scene",
+            message_filters.Subscriber("airsim_node/Multirotor/odom_local_ned", nav_msgs.Odometry),
+            message_filters.Subscriber("airsim_node/Multirotor/front_center_custom/Scene",
                                        sensor_msgs.Image),
             # message_filters.Subscriber("/airsim_node/Multirotor/front_center_custom/Scene/camera_info", 
             #                            sensor_msgs.CameraInfo),
@@ -61,7 +61,8 @@ class SAM_DA_node:
         device = "cpu"
         conf = 0.5
         iou = 0.9
-        samModel = FastSamWrapper(pathToCheckpoint, device, conf, iou)
+        imgsz = 256
+        samModel = FastSamWrapper(pathToCheckpoint, device, conf, iou, imgsz)
 
         logger = getLogger()
 
@@ -123,30 +124,20 @@ class SAM_DA_node:
         if keyframe == None:
             keyframe = 0
 
-        # T 2 pose msg
-        pose_without_noise = T_2_pose_msg(T)
-
-        # multivariate random normal distribution for noise
-        mean = [0,0,0,0,0,0]
-        noise_amount = self.noise_amount
-        cov = np.diag([noise_amount**2, noise_amount**2, noise_amount**2, noise_amount**2, noise_amount**2, noise_amount**2])
-        noise = np.random.multivariate_normal(mean, cov, 1).reshape(-1)
-
-        # add noise to pose msg
-        pose_with_noise = PoseWithCovariance()
-
-        pose_with_noise.pose.orientation.x = pose_without_noise.orientation.x + noise[0]
-        pose_with_noise.pose.orientation.y = pose_without_noise.orientation.y + noise[1]
-        pose_with_noise.pose.orientation.z = pose_without_noise.orientation.z + noise[2]
-        pose_with_noise.pose.position.x = pose_without_noise.position.x + noise[3]
-        pose_with_noise.pose.position.y = pose_without_noise.position.y + noise[4]
-        pose_with_noise.pose.position.z = pose_without_noise.position.z + noise[5]
-
-        T_with_noise = pose_msg_2_T(pose_with_noise.pose)
+        # create a noise transformation matrix
+        pose_pos_cov = 0.1 # meters
+        pose_rot_cov = 0.1 # degrees
+        rpy_cov = np.deg2rad(pose_rot_cov)**2
+        xyz_cov = pose_pos_cov**2
+        noise_matrix = np.eye(4)
+        noise_matrix[:3, :3] = Rot.from_euler('xyz', np.random.multivariate_normal([0,0,0], np.diag([rpy_cov, rpy_cov, rpy_cov]))).as_matrix()
+        noise_matrix[:3, 3] = np.random.multivariate_normal([0,0,0], np.diag([xyz_cov, xyz_cov, xyz_cov])) 
 
         # image and pose in BlobSAMNode
         self.blob_sam_node.image = img
-        self.blob_sam_node.T = T_with_noise
+        self.blob_sam_node.T = T # TODO: blob_sam is using noiseless T for now, if we switch to noisy we need
+                                 # to keep this transform separate from the one we are using to compute the incremental_pose.
+                                 # Noise should be applied to true relative pose
         self.blob_sam_node.filename = self.blob_sam_node.blobTracker.latestKeyframeIndex
         self.blob_sam_node.blobTracker = self.blobTracker
 
@@ -161,15 +152,16 @@ class SAM_DA_node:
         packet.sequence = np.int32(counter)
 
         # Add relative pose measurement
-        if self.last_pose is None:
+        if self.last_pose is None: # for initial pose
             packet.incremental_pose = PoseWithCovariance()
             # TODO: right now sending the absolute pose as the first message, a bit hacky
-            packet.incremental_pose.pose = pose_with_noise
-            packet.incremental_pose.covariance = noise
+            packet.incremental_pose.pose = T_2_pose_msg(T) # not adding noise to initial pose for now
+            packet.incremental_pose.covariance = np.diag([xyz_cov, xyz_cov, xyz_cov, rpy_cov, rpy_cov, rpy_cov]).reshape(-1)
         else:
             packet.incremental_pose = PoseWithCovariance()
-            packet.incremental_pose.pose = T_2_pose_msg(np.linalg.inv(self.last_pose) @ T_with_noise)
-            packet.incremental_pose.covariance = noise
+            incremental_pose = np.linalg.inv(self.last_pose) @ T
+            packet.incremental_pose.pose = T_2_pose_msg(noise_matrix @ incremental_pose) # noise needs to be applied after finding the true incremental pose
+            packet.incremental_pose.covariance = np.diag([xyz_cov, xyz_cov, xyz_cov, rpy_cov, rpy_cov, rpy_cov]).reshape(-1)
 
         for track in self.blobTracker.tracks:
 
@@ -208,7 +200,7 @@ class SAM_DA_node:
                     segmentMeasurement.center = Pose2D(x=px_coords[0], y=px_coords[1], theta=0)
                     segmentMeasurement.sequence = np.int32(frame) 
                     # TODO: make rosparam pixel covariance
-                    segmentMeasurement.covariance = np.diag([10., 10.]).reshape(-1)
+                    segmentMeasurement.covariance = np.diag([3., 3.]).reshape(-1)
                     # segmentMeasurement.latest_sift = sift
                     packet.segments.append(segmentMeasurement)
 
@@ -224,14 +216,14 @@ class SAM_DA_node:
                 segmentMeasurement.center = Pose2D(x=current_px_coords[0], y=current_px_coords[1], theta=0)
                 segmentMeasurement.sequence = np.int32(counter) 
                 # TODO: make rosparam pixel covariance
-                segmentMeasurement.covariance = np.diag([10., 10.]).reshape(-1)
+                segmentMeasurement.covariance = np.diag([3., 3.]).reshape(-1)
                 # segmentMeasurement.latest_sift = current_sift
                 packet.segments.append(segmentMeasurement)
 
         # print(packet)
         self.meas_pub.publish(packet)
 
-        self.last_pose = T_with_noise
+        self.last_pose = T
         self.counter = self.counter + 1
 
         return
