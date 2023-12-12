@@ -123,9 +123,18 @@ class SAM_DA_node:
         if keyframe == None:
             keyframe = 0
 
+        # create a noise transformation matrix
+        pose_pos_cov = 0.05 # meters
+        pose_rot_cov = 0.05 # degrees
+        rpy_cov = np.deg2rad(pose_rot_cov)**2
+        xyz_cov = pose_pos_cov**2
+        noise_matrix = np.eye(4)
+        noise_matrix[:3, :3] = Rot.from_euler('xyz', np.random.multivariate_normal([0,0,0], np.diag([rpy_cov, rpy_cov, rpy_cov]))).as_matrix()
+        noise_matrix[:3, 3] = np.random.multivariate_normal([0,0,0], np.diag([xyz_cov, xyz_cov, xyz_cov])) 
+
         # image and pose in BlobSAMNode
         self.blob_sam_node.image = img
-        self.blob_sam_node.T = T
+        self.blob_sam_node.T = T + noise_matrix
         self.blob_sam_node.filename = self.blob_sam_node.blobTracker.latestKeyframeIndex
         self.blob_sam_node.blobTracker = self.blobTracker
 
@@ -140,15 +149,16 @@ class SAM_DA_node:
         packet.sequence = np.int32(counter)
 
         # Add relative pose measurement
-        if self.last_pose is None:
+        if self.last_pose is None: # for initial pose
             packet.incremental_pose = PoseWithCovariance()
             # TODO: right now sending the absolute pose as the first message, a bit hacky
-            packet.incremental_pose.pose = T_2_pose_msg(T)
-            packet.incremental_pose.covariance = np.diag([np.deg2rad(.01)**2, np.deg2rad(.01)**2, np.deg2rad(.01)**2, .001**2, .001**2, .001**2]).reshape(-1)
+            packet.incremental_pose.pose = T_2_pose_msg(T) # not adding noise to initial pose for now
+            packet.incremental_pose.covariance = np.diag([xyz_cov, xyz_cov, xyz_cov, rpy_cov, rpy_cov, rpy_cov]).reshape(-1)
         else:
             packet.incremental_pose = PoseWithCovariance()
-            packet.incremental_pose.pose = T_2_pose_msg(np.linalg.inv(self.last_pose) @ T)
-            packet.incremental_pose.covariance = np.diag([np.deg2rad(.01)**2, np.deg2rad(.01)**2, np.deg2rad(.01)**2, .001**2, .001**2, .001**2]).reshape(-1)
+            incremental_pose = np.linalg.inv(self.last_pose) @ T
+            packet.incremental_pose.pose = T_2_pose_msg(noise_matrix @ incremental_pose) # noise needs to be applied after finding the true incremental pose
+            packet.incremental_pose.covariance = np.diag([xyz_cov, xyz_cov, xyz_cov, rpy_cov, rpy_cov, rpy_cov]).reshape(-1)
 
         for track in self.blobTracker.tracks:
 
