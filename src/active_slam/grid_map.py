@@ -19,13 +19,16 @@ class GridMapper:
     """
 
     # constructor
-    def __init__(self, coverage_area_size):
+    def __init__(self, coverage_area_size, data_path):
 
         # store the objects in the map
         self.objects = []
 
         # store the robot's pose
         self.robot_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        
+        # store history of robot poses
+        self.robot_pose_history = []
 
         # the knwon/unknown area map
         # the unknown cells should be covered with gray
@@ -54,6 +57,9 @@ class GridMapper:
         # visualize the map?
         self.is_plot_map = True
 
+        # save the data path
+        self.data_path = data_path
+
     # update the objects' list
     def update_objects(self, map):
         
@@ -74,6 +80,9 @@ class GridMapper:
 
         # update the robot's pose
         self.robot_pose = robot_pose.copy()
+
+        # update the robot's pose history
+        self.robot_pose_history.append(self.robot_pose.copy())
 
         # update the grid map
         self.update_grid_map()
@@ -98,7 +107,7 @@ class GridMapper:
     # visualize a 2D grid map
     def visualize_map(self, unexplored_goal_poses, goal_idx):
 
-        print("visualizing map")
+        # print("visualizing map")
 
         if self.is_plot_map:  # pragma: no cover
 
@@ -136,6 +145,10 @@ class GridMapper:
             # visualize the grid map
             plt.imshow(self.occ_grid_map.T, cmap="gray", origin="lower", extent=(self.x_min, self.x_max, self.y_min, self.y_max), alpha=0.2)
 
+            # draw the robot's pose history
+            for pose in self.robot_pose_history:
+                plt.plot(pose[1], pose[0], ".b", label="robot's pose history", linewidth=0.1)
+
             # draw the robot
             # Note that the robot is in NED frame, so we need to swap x-y axis
             plt.plot(self.robot_pose[1], self.robot_pose[0], "xb", label="robot")
@@ -156,7 +169,7 @@ class GridMapper:
             plt.ylabel("x")
 
             # save the figure
-            # fig_name = "/home/jtorde/data/active_slam/map_" + str(self.image_counter) + ".png"
-            fig_name = "/home/jtorde/data/active_slam/map.png"
+            fig_name = self.data_path + "/active_slam/map_" + str(self.image_counter) + ".png"
+            # fig_name = self.data_path + "/active_slam/map.png"
             plt.savefig(fig_name)
             self.image_counter += 1

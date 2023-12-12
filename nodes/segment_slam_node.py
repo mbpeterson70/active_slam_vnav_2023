@@ -26,9 +26,11 @@ class SegmentSLAMNode():
         # ros params
         self.K = np.array(rospy.get_param("~K")).reshape((3,3))
         self.distorition_params = np.array(rospy.get_param("~distorition_params"))
+        self.T_BC = np.array(rospy.get_param("~T_BC", np.eye(4).tolist())).reshape((4,4))
+        self.frame_id = rospy.get_param("~frame_id", "Multirotor")
         
         # internal variables
-        self.slam = SegmentSLAM(self.K, self.distorition_params)
+        self.slam = SegmentSLAM(self.K, self.distorition_params, self.T_BC)
         self.received_first_msg = False
         self.seen_objects = set() 
         self.badly_behaved_ids = []
@@ -51,9 +53,13 @@ class SegmentSLAMNode():
         if packet.sequence == 0:
             self.slam.set_initial_pose(pose_msg_2_T(packet.incremental_pose.pose))
         else:
+            covariance_tmp = np.array(packet.incremental_pose.covariance).reshape((6,6))
+            covariance = np.zeros((6,6))
+            covariance[3:,3:] = covariance_tmp[:3,:3]
+            covariance[:3,:3] = covariance_tmp[3:,3:]
             self.slam.add_relative_pose(
                 pose_msg_2_T(packet.incremental_pose.pose), 
-                np.array(packet.incremental_pose.covariance).reshape((6,6)), 
+                covariance, 
                 pre_idx=packet.sequence - 1
             )
 
@@ -103,7 +109,7 @@ class SegmentSLAMNode():
         self.slam.new_objects_data_association(
             object_ids=[seg_id for seg_id in init_guesses],
             init_guesses=[init_guesses[seg_id] for seg_id in init_guesses],
-            last_pose_idxs=[np.max([sm.sequence for sm in new_segments[seg_id]]) for seg_id in init_guesses]
+            disable_data_association=False
         )      
 
         for seg_id, segment_measurements in new_segments.items():
@@ -120,7 +126,7 @@ class SegmentSLAMNode():
             try:
                 import time
                 start_t = time.time()
-                result = self.slam.solve()
+                result, marginals = self.slam.solve()
                 print(f"TOTAL TIME: {time.time() - start_t}")
                 break
             except Exception as ex:
@@ -134,19 +140,21 @@ class SegmentSLAMNode():
         # print(gtsam.VariableIndex(self.slam.graph).find(self.slam.x(0)))
         # print(gtsam.VariableIndex(self.slam.graph).__dir__())
 
-        self.publish_graph(result)
+        self.publish_graph(result, marginals)
         self.publish_optimized_path(result)
         self.publish_optimized_objects(result)
 
         return
     
-    def publish_graph(self, result):
+    def publish_graph(self, result, marginals):
         graph_msg = active_slam_msgs.Graph()
         for i in range(len(self.slam.pose_chain)):
             new_node = active_slam_msgs.GraphNode()
             new_node.id = active_slam_msgs.GraphNodeID(ord('x'), i)
             position = result.atPose3(self.slam.x(i)).matrix()[:3,3]
             new_node.position.x, new_node.position.y, new_node.position.z = position
+            new_node.covariance = marginals.marginalCovariance(
+                self.slam.x(i))[3:6,3:6].reshape(-1).tolist() # translation piece
             # TODO: send marginal covariance
             graph_msg.nodes.append(new_node)
             
@@ -155,6 +163,8 @@ class SegmentSLAMNode():
             new_node.id = active_slam_msgs.GraphNodeID(ord('o'), obj_id)
             position = result.atPoint3(self.slam.o(obj_id))
             new_node.position.x, new_node.position.y, new_node.position.z = position
+            new_node.covariance = marginals.marginalCovariance(
+                self.slam.o(obj_id)).reshape(-1).tolist()
             graph_msg.nodes.append(new_node)
             
         # populate edges
@@ -180,7 +190,7 @@ class SegmentSLAMNode():
     def publish_optimized_path(self, result):
         path = nav_msgs.Path()
         path.header.stamp = rospy.Time.now()
-        path.header.frame_id = "Multirotor"
+        path.header.frame_id = self.frame_id
 
         for i in range(len(self.slam.pose_chain)):
             pose = geometry_msgs.PoseStamped()
@@ -221,7 +231,7 @@ class SegmentSLAMNode():
         marker = visualization_msgs.Marker()
         marker = visualization_msgs.Marker()
         marker.header.stamp = rospy.Time.now()
-        marker.header.frame_id = "Multirotor"
+        marker.header.frame_id = self.frame_id
         marker.id = obj_id
         marker.type = marker.CUBE
         marker.action = marker.ADD
