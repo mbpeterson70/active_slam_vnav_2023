@@ -80,7 +80,7 @@ class SegmentSLAM():
         
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, pixel_std_dev)
         factor = gtsam.GenericProjectionFactorCal3DS2(
-            gtsam.Point2(center_pixel), measurement_noise, self.x(pose_idx), self.o(object_id), 
+            gtsam.Point2(center_pixel), measurement_noise, self.x(pose_idx), self.o(self.object_id_mapping[object_id]), 
             self.cal3ds2, body_P_sensor=gtsam.Pose3(self.T_BC))
         self.graph.push_back(factor)
         
