@@ -140,14 +140,15 @@ class SegmentSLAMNode():
         # print(gtsam.VariableIndex(self.slam.graph).find(self.slam.x(0)))
         # print(gtsam.VariableIndex(self.slam.graph).__dir__())
 
-        self.publish_graph(result, marginals)
-        self.publish_optimized_path(result)
+        self.publish_graph(result, marginals, packet.header.stamp)
+        self.publish_optimized_path(result, packet.header.stamp)
         self.publish_optimized_objects(result)
 
         return
     
-    def publish_graph(self, result, marginals):
+    def publish_graph(self, result, marginals, stamp):
         graph_msg = active_slam_msgs.Graph()
+        graph_msg.header.stamp = stamp
         for i in range(len(self.slam.pose_chain)):
             new_node = active_slam_msgs.GraphNode()
             new_node.id = active_slam_msgs.GraphNodeID(ord('x'), i)
@@ -155,9 +156,8 @@ class SegmentSLAMNode():
             new_node.position.x, new_node.position.y, new_node.position.z = position
             new_node.covariance = marginals.marginalCovariance(
                 self.slam.x(i))[3:6,3:6].reshape(-1).tolist() # translation piece
-            # TODO: send marginal covariance
             graph_msg.nodes.append(new_node)
-            
+
         for obj_id in self.slam.object_ids:
             new_node = active_slam_msgs.GraphNode()
             new_node.id = active_slam_msgs.GraphNodeID(ord('o'), obj_id)
@@ -187,9 +187,9 @@ class SegmentSLAMNode():
         
         self.graph_pub.publish(graph_msg) 
     
-    def publish_optimized_path(self, result):
+    def publish_optimized_path(self, result, stamp):
         path = nav_msgs.Path()
-        path.header.stamp = rospy.Time.now()
+        path.header.stamp = stamp
         path.header.frame_id = self.frame_id
 
         for i in range(len(self.slam.pose_chain)):

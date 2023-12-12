@@ -3,13 +3,14 @@ session_name: perception_exploration
 environment:
   AIRSIM_BIN_PATH: "/home/masonbp/tools/AirSim/environments/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
   ACTIVE_SLAM_VENV: "/home/masonbp/.envs/active_slam/"
+  ACTIV_SLAM_WS: "/home/masonbp/ws/active_slam_ws"
 
 options:
   default-command: /bin/bash
 
 windows:
-- window_name: perception_exploration
-  layout: tiled  
+- window_name: sim_exploration
+  layout: tiled
   shell_command_before:
     - source $ACTIVE_SLAM_VENV/bin/activate
 
@@ -18,7 +19,18 @@ windows:
     - $AIRSIM_BIN_PATH -RenderOffScreen #-ResX=640 -ResY=480 -windowed
     - sleep 5; roslaunch airsim_ros_pkgs airsim_node.launch
     - sleep 5; roslaunch active_slam planner_ros_node.launch exploration_velocity:=1.0
-    - sleep 5; rosrun active_slam SAM_DA_node.py
+    - sleep 5; rviz -d $ACTIV_SLAM_WS/src/active_slam_vnav_2023/rviz/active_slam.rviz
+
+- window_name: perception
+  layout: main-vertical
+  focus: true
+  shell_command_before:
+    - source $ACTIVE_SLAM_VENV/bin/activate
+
+  panes:
     - sleep 5; roslaunch active_slam segment_slam.launch
+    - sleep 5; rosrun active_slam SAM_DA_node.py
+    - sleep 5; rosrun active_slam map_viz_node.py
     - sleep 5; rosrun active_slam segment_viz_node.py
-    # - sleep 5; rosbag record /annotated_image -o ~/results/active_slam/segment_slam/00
+    # - sleep 5; rostopic echo /airsim_node/Multirotor/odom_local_ned
+    # - sleep 5; rosbag record /annotated_image /factor_graph -o ~/results/active_slam/fixslam/01/
