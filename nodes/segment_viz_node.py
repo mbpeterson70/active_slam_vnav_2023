@@ -18,7 +18,7 @@ class SegmentViz:
         self.image_topic = '/airsim_node/Multirotor/front_center_custom/Scene'
         self.measurement_topic = '/measurement_packet'
         self.publish_topic = '/annotated_image'
-        self.fifo_size = 20
+        self.fifo_size = 10
 
         # Initialize FIFO and image dictionary
         self.image_fifo = deque(maxlen=self.fifo_size)

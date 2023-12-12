@@ -134,7 +134,7 @@ class SAM_DA_node:
 
         # image and pose in BlobSAMNode
         self.blob_sam_node.image = img
-        self.blob_sam_node.T = T + noise_matrix
+        self.blob_sam_node.T = T
         self.blob_sam_node.filename = self.blob_sam_node.blobTracker.latestKeyframeIndex
         self.blob_sam_node.blobTracker = self.blobTracker
 
