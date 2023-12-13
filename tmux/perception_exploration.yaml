@@ -34,5 +34,8 @@ windows:
     - sleep 5; rosrun active_slam segment_viz_node.py
     - sleep 5; rosrun image_transport republish raw in:=/stitched_map
       compressed out:=/stitched_map
+    - sleep 5; rosbag record /stitched_map/compressed /noisy_odom /optimized_pose /airsim_node/Multirotor/odom_local_ned 
+      /factor_graph /optimized_path /log_det_information -o ~/results/active_slam/mapviz/
+    # - sleep 10800; tmux kill-session
     # - sleep 5; rostopic echo /airsim_node/Multirotor/odom_local_ned
     # - sleep 5; rosbag record /annotated_image /factor_graph -o ~/results/active_slam/fixslam/01/
