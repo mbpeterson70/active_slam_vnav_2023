@@ -78,10 +78,11 @@ class SAM_DA_node:
         print("BlobSAMNode instantiated")
 
         # subscribe to /first_goal_reached topic
-        self.first_goal_reached_sub = rospy.Subscriber("/first_goal_reached", std_msgs.Bool, self.first_goal_reached_cb)
+        # self.first_goal_reached_sub = rospy.Subscriber("/first_goal_reached", std_msgs.Bool, self.first_goal_reached_cb)
 
         # Approximate Time Synchronizer
         self.ts = message_filters.ApproximateTimeSynchronizer(subs, queue_size=1, slop=.1)
+        self.ts.registerCallback(self.cb) # registers incoming messages to callback
 
         # ros publishers
         self.meas_pub = rospy.Publisher("measurement_packet", active_slam_msgs.MeasurementPacket, queue_size=5)
@@ -125,8 +126,8 @@ class SAM_DA_node:
             keyframe = 0
 
         # create a noise transformation matrix
-        pose_pos_cov = 0.1 # meters
-        pose_rot_cov = 0.1 # degrees
+        pose_pos_cov = 0.01 # meters
+        pose_rot_cov = 0.01 # degrees
         rpy_cov = np.deg2rad(pose_rot_cov)**2
         xyz_cov = pose_pos_cov**2
         noise_matrix = np.eye(4)
