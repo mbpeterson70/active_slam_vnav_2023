@@ -3,9 +3,10 @@
 	<arg name="car_or_drone" default="drone" />
 	<arg name="altitude" default="50.0" />
 	<arg name="coverage_area_size" default="100.0" />
-	<arg name="exploration_goal_points_resolution" default="10.0" />
+	<arg name="exploration_goal_points_resolution" default="25.0" />
 	<arg name="exploration_velocity" default="5.0" />
-	<arg name="log_det_l_threshold" default="10.0" />
+	<arg name="covariance_threshold" default="-8.0" />
+	<arg name="data_path" default="/home/jtorde/data" />
 
 	<node name="planner_ros_node" pkg="active_slam" type="planner_ros_node" output="screen" >
 		<param name="car_or_drone" value="$(arg car_or_drone)" />
@@ -13,7 +14,8 @@
 		<param name="coverage_area_size" value="$(arg coverage_area_size)" />
 		<param name="exploration_goal_points_resolution" value="$(arg exploration_goal_points_resolution)" />
 		<param name="exploration_velocity" value="$(arg exploration_velocity)" />
-		<param name="log_det_l_threshold" value="$(arg log_det_l_threshold)" />
+		<param name="covariance_threshold" value="$(arg covariance_threshold)" />
+		<param name="data_path" value="$(arg data_path)" />
 	</node>	
     
 </launch>

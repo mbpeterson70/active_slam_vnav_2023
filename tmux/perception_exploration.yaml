@@ -1,8 +1,8 @@
 session_name: perception_exploration
 
 environment:
-  AIRSIM_BIN_PATH: "/home/masonbp/tools/AirSim/environments/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
-  ACTIVE_SLAM_VENV: "/home/masonbp/.envs/active_slam/"
+  AIRSIM_BIN_PATH: "/home/jtorde/Research/active_slam_ws/src/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
+  # ACTIVE_SLAM_VENV: "/home/jtorde/Research/active_slam_ws/src/active_slam"
 
 options:
   default-command: /bin/bash
@@ -10,15 +10,17 @@ options:
 windows:
 - window_name: perception_exploration
   layout: tiled  
-  shell_command_before:
-    - source $ACTIVE_SLAM_VENV/bin/activate
+  # shell_command_before:
+  #   - source $ACTIVE_SLAM_VENV/bin/activate
 
   panes:
     - roscore
     - $AIRSIM_BIN_PATH -RenderOffScreen #-ResX=640 -ResY=480 -windowed
+    # - $AIRSIM_BIN_PATH -ResX=640 -ResY=480 -windowed
     - sleep 5; roslaunch airsim_ros_pkgs airsim_node.launch
     - sleep 5; roslaunch active_slam planner_ros_node.launch exploration_velocity:=1.0
     - sleep 5; rosrun active_slam SAM_DA_node.py
     - sleep 5; roslaunch active_slam segment_slam.launch
     - sleep 5; rosrun active_slam segment_viz_node.py
+    - sleep 5; rosbag record -o test /airsim_node/Multirotor/front_center_custom/Scene /airsim_node/Multirotor/odom_local_ned /log_det_last_pose_covariance /log_det_reduced_Laplacian_matrix /rosout /rosout_agg /tf /tf_static
     # - sleep 5; rosbag record /annotated_image -o ~/results/active_slam/segment_slam/00
