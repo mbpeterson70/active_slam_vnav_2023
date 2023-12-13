@@ -111,7 +111,7 @@ class SegmentSLAM():
             existing_covs = np.array([self.last_obj_covs[obj_id]
                                     for obj_id in self.object_ids]).reshape((-1,3,3))
             # TODO: can I estimate the covariance somehow?
-            new_covs = np.array([np.eye(3)*1.5 for obj_id in object_ids])
+            new_covs = np.array([np.eye(3)*2.5 for obj_id in object_ids])
             init_guesses = np.array(init_guesses).reshape((-1,3))
             
             associated, unassociated = global_nearest_neighbor(

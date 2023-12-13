@@ -14,6 +14,7 @@ import geometry_msgs.msg as geometry_msgs
 import sensor_msgs.msg as sensor_msgs
 import active_slam.msg as active_slam_msgs
 import visualization_msgs.msg as visualization_msgs
+import std_msgs.msg as std_msgs
 
 from active_slam.segment_slam.segment_slam import SegmentSLAM
 
@@ -35,14 +36,18 @@ class SegmentSLAMNode():
         self.seen_objects = set() 
         self.badly_behaved_ids = []
         self.obj_colors = dict()
+        self.T_odom = None
         
         # ros subscribers
         self.meas_sub = rospy.Subscriber("measurement_packet", active_slam_msgs.MeasurementPacket, callback=self.meas_packet_cb, queue_size=5)
 
         # ros publishers
         self.opt_path_pub = rospy.Publisher("optimized_path", nav_msgs.Path, queue_size=5)
+        self.noisy_odom_pub = rospy.Publisher("noisy_odom", geometry_msgs.PoseStamped, queue_size=5)
+        self.opt_pose_pub = rospy.Publisher("optimized_pose", geometry_msgs.PoseStamped, queue_size=5)
         self.opt_obj_pub = rospy.Publisher("optimized_objects", visualization_msgs.MarkerArray, queue_size=5)
         self.graph_pub = rospy.Publisher("factor_graph", active_slam_msgs.Graph, queue_size=5)
+        self.log_det_info_pub = rospy.Publisher("log_det_information", std_msgs.Float64, queue_size=5)
 
     def meas_packet_cb(self, packet: active_slam_msgs.MeasurementPacket):
         """
@@ -52,7 +57,9 @@ class SegmentSLAMNode():
         # is actually used as the initial pose.
         if packet.sequence == 0:
             self.slam.set_initial_pose(pose_msg_2_T(packet.incremental_pose.pose))
+            self.T_odom = pose_msg_2_T(packet.incremental_pose.pose)
         else:
+            self.T_odom = self.T_odom @ pose_msg_2_T(packet.incremental_pose.pose)
             covariance_tmp = np.array(packet.incremental_pose.covariance).reshape((6,6))
             covariance = np.zeros((6,6))
             covariance[3:,3:] = covariance_tmp[:3,:3]
@@ -95,11 +102,6 @@ class SegmentSLAMNode():
                 )
             except:
                 print(f"Object {seg_id} triangulation failed! Ignoring...")
-                # print([np.array([sm.center.x, sm.center.y]) for sm in segment_measurements])
-                # print([sm.sequence for sm in segment_measurements])
-                # for seq in [sm.sequence for sm in segment_measurements]:
-                #     print(self.slam.pose_chain[seq])
-                # init_guesses[seg_id] = np.zeros(3)
                 self.badly_behaved_ids.append(seg_id)
                 to_delete.append(seg_id)
         for seg_id in to_delete:
@@ -134,20 +136,32 @@ class SegmentSLAMNode():
                 self.handle_gtsam_exception(ex)
                 # print(gtsam.VariableIndex(self.slam.graph))
                 continue
-        # print("GOT A RESULT")
-        # print(result)
-        # print(gtsam.VariableIndex(self.slam.graph))
-        # print(gtsam.VariableIndex(self.slam.graph).find(self.slam.x(0)))
-        # print(gtsam.VariableIndex(self.slam.graph).__dir__())
+            
+        # from copy import deepcopy
+        # graph_cp = deepcopy(self.slam.graph)
+        # # while graph_cp.exists(i):
+        # #     factor = graph_cp.at(i)
+        # #     if len(factor.keys()) == 1:
+        # #         break
+        # #     i += 1  
+        # graph_cp.remove(0)
+        # print(np.linalg.det(graph_cp.linearize(result).hessian()[0]))
 
-        self.publish_graph(result, marginals)
-        self.publish_optimized_path(result)
+        self.publish_graph(result, marginals, packet.header.stamp)
+        self.publish_optimized_path(result, packet.header.stamp)
         self.publish_optimized_objects(result)
 
         return
+
+    def publish_log_det_information(self, marginals, stamp):
+
+        print()
     
-    def publish_graph(self, result, marginals):
+    def publish_graph(self, result, marginals, stamp):
+        information_sum = np.zeros((6,6))
+        
         graph_msg = active_slam_msgs.Graph()
+        graph_msg.header.stamp = stamp
         for i in range(len(self.slam.pose_chain)):
             new_node = active_slam_msgs.GraphNode()
             new_node.id = active_slam_msgs.GraphNodeID(ord('x'), i)
@@ -155,9 +169,11 @@ class SegmentSLAMNode():
             new_node.position.x, new_node.position.y, new_node.position.z = position
             new_node.covariance = marginals.marginalCovariance(
                 self.slam.x(i))[3:6,3:6].reshape(-1).tolist() # translation piece
-            # TODO: send marginal covariance
+            information_sum += marginals.marginalInformation(self.slam.x(i))
             graph_msg.nodes.append(new_node)
             
+        log_det_information = np.log(np.linalg.det((information_sum)))
+
         for obj_id in self.slam.object_ids:
             new_node = active_slam_msgs.GraphNode()
             new_node.id = active_slam_msgs.GraphNodeID(ord('o'), obj_id)
@@ -186,18 +202,30 @@ class SegmentSLAMNode():
             graph_msg.edges.append(new_edge)           
         
         self.graph_pub.publish(graph_msg) 
+        self.log_det_info_pub.publish(std_msgs.Float64(log_det_information))
     
-    def publish_optimized_path(self, result):
+    def publish_optimized_path(self, result, stamp):
         path = nav_msgs.Path()
-        path.header.stamp = rospy.Time.now()
+        path.header.stamp = stamp
         path.header.frame_id = self.frame_id
 
         for i in range(len(self.slam.pose_chain)):
             pose = geometry_msgs.PoseStamped()
             pose.pose = T_2_pose_msg(result.atPose3(self.slam.x(i)).matrix())
             path.poses.append(pose)
+            
+        pose = geometry_msgs.PoseStamped()
+        pose.header = path.header
+        pose.pose = T_2_pose_msg(result.atPose3(self.slam.x(len(self.slam.pose_chain)-1)).matrix())
+
+        noisy_pose = geometry_msgs.PoseStamped()
+        noisy_pose.header = path.header
+        noisy_pose.pose = T_2_pose_msg(self.T_odom)
+        
 
         self.opt_path_pub.publish(path)
+        self.opt_pose_pub.publish(pose)
+        self.noisy_odom_pub.publish(noisy_pose)
         return
     
     def publish_optimized_objects(self, result):
