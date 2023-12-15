@@ -19,7 +19,7 @@ class GridMapper:
     """
 
     # constructor
-    def __init__(self, coverage_area_size, data_path):
+    def __init__(self, coverage_area_size, data_path, altitude=50):
 
         # store the objects in the map
         self.objects = []
@@ -27,8 +27,14 @@ class GridMapper:
         # store the robot's pose
         self.robot_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         
+        # store the robot's ground truth pose
+        self.robot_gt_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ,1.0]
+
         # store history of robot poses
         self.robot_pose_history = []
+
+        # store history of robot ground truth poses
+        self.robot_gt_pose_history = []
 
         # the knwon/unknown area map
         # the unknown cells should be covered with gray
@@ -52,7 +58,7 @@ class GridMapper:
 
         # FOV of the drone
         # but this is only for visualization purpose and this depends on the altitude, so it's pretty arbitrary
-        self.coverage_radius_for_visualization = 10.0 # [m] the radius of the coverage area
+        self.coverage_radius_for_visualization = altitude * np.tan(np.deg2rad(45)) # [m] the radius of the coverage area
 
         # visualize the map?
         self.is_plot_map = True
@@ -82,7 +88,16 @@ class GridMapper:
         self.robot_pose = robot_pose.copy()
 
         # update the robot's pose history
-        self.robot_pose_history.append(self.robot_pose.copy())
+        self.robot_pose_history.append(robot_pose.copy())
+
+    # update the robot's ground truth pose
+    def update_robot_gt_pose(self, robot_gt_pose):
+
+        # update the robot's groung truth pose
+        self.robot_gt_pose = robot_gt_pose.copy()
+
+        # update the robot's pose history
+        self.robot_gt_pose_history.append(robot_gt_pose.copy())
 
         # update the grid map
         self.update_grid_map()
@@ -91,8 +106,8 @@ class GridMapper:
     def update_grid_map(self):
 
         # robot's in NED frame, so we need to swap x-y axis
-        robot_pos_x = self.robot_pose[1]
-        robot_pos_y = self.robot_pose[0]
+        robot_pos_x = self.robot_gt_pose[1]
+        robot_pos_y = self.robot_gt_pose[0]
 
         # the known area (which has been covered by the robot) should be covered with white
         for xidx in range(self.occ_grid_map.shape[0]):
@@ -140,22 +155,36 @@ class GridMapper:
             
             # draw the unexplored goal poses
             for idx in range(goal_idx, len(unexplored_goal_poses)):
-                plt.plot(unexplored_goal_poses[idx][1], unexplored_goal_poses[idx][0], "og", label="unexplored goal poses")
+                    plt.plot(unexplored_goal_poses[idx][1], unexplored_goal_poses[idx][0], "og", label="unexplored goal poses")
 
             # visualize the grid map
             plt.imshow(self.occ_grid_map.T, cmap="gray", origin="lower", extent=(self.x_min, self.x_max, self.y_min, self.y_max), alpha=0.2)
 
-            # draw the robot's pose history
-            for pose in self.robot_pose_history:
-                plt.plot(pose[1], pose[0], ".b", label="robot's pose history", linewidth=0.1)
+            """ robots belief map """
 
-            # draw the robot
+            # # draw the robot's pose history
+            # for pose in self.robot_pose_history:
+            #     plt.plot(pose[1], pose[0], ".b", label="robot's pose history", linewidth=5, alpha=0.1)
+
+            # # draw the robot
+            # # Note that the robot is in NED frame, so we need to swap x-y axis
+            # plt.plot(self.robot_pose[1], self.robot_pose[0], "xb", label="robot")
+            # # draw the robot's orientation
+            # yaw = Rot.from_quat([self.robot_pose[3], self.robot_pose[4], self.robot_pose[5], self.robot_pose[6]]).as_euler('xyz', degrees=False)[2]
+            # yaw = np.deg2rad(90) - yaw # since the robot's orientation is in NED frame, we need to make change to the yaw angle
+            # plt.quiver(self.robot_pose[1], self.robot_pose[0], np.cos(yaw), np.sin(yaw), color="r", label="robot's orientation", alpha=0.5, scale=5)
+
+            """ robots ground truth map """
+            for pose in self.robot_gt_pose_history:
+                plt.plot(pose[1], pose[0], ".b", label="robot's ground truth pose history", linewidth=5)
+            
+            # draw the robot's ground truth pose
             # Note that the robot is in NED frame, so we need to swap x-y axis
-            plt.plot(self.robot_pose[1], self.robot_pose[0], "xb", label="robot")
-            # draw the robot's orientation
-            yaw = Rot.from_quat([self.robot_pose[3], self.robot_pose[4], self.robot_pose[5], self.robot_pose[6]]).as_euler('xyz', degrees=False)[2]
-            yaw = np.deg2rad(90) - yaw # since the robot's orientation is in NED frame, we need to make change to the yaw angle
-            plt.quiver(self.robot_pose[1], self.robot_pose[0], np.cos(yaw), np.sin(yaw), color="r", label="robot's orientation")
+            plt.plot(self.robot_gt_pose[1], self.robot_gt_pose[0], "xb", label="robot's ground truth")
+            # draw the robot's ground truth orientation
+            yaw = Rot.from_quat([self.robot_gt_pose[3], self.robot_gt_pose[4], self.robot_gt_pose[5], self.robot_gt_pose[6]]).as_euler('xyz', degrees=False)[2]
+            yaw = np.deg2rad(90) - yaw
+            plt.quiver(self.robot_gt_pose[1], self.robot_gt_pose[0], np.cos(yaw), np.sin(yaw), color="r", label="robot's ground truth orientation")
 
             # equal axis
             plt.axis("equal")

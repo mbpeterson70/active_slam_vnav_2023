@@ -10,6 +10,7 @@ import time
 import pickle
 import matplotlib.pyplot as plt
 import scipy
+import time
 
 class CameraModel:
     def __init__(self, fx, fy, s, u0, v0, k1, k2, p1, p2):
@@ -119,11 +120,99 @@ class BlobTracker:
         self.fTestMaxVal = fTestMaxVal
         self.matchingScoreLowerLimit = matchingScoreLowerLimit
         self.numTracks = 0
+        self.frameSiftFeatures = dict()
 
         return
 
     def getKeyframeNames(self):
         return self.frameNamesHistory
+    
+    def findFundamentalMatViaSiftPoints(self, image_bgr_prev, image_bgr, imageFrame, prevImageFrame):
+        sift = cv2.SIFT.create()
+
+        sift_feats_start_time = time.time()
+
+        framesSiftFeatures = self.frameSiftFeatures
+
+        if imageFrame in reversed(framesSiftFeatures):
+            kp1, des1 = framesSiftFeatures[imageFrame]
+            #print(f"Found frame {imageFrame} in dictionary of SIFT features in {(search_end_time-search_start_time)*1000:.2f} ms")
+
+        else:
+            sift = cv2.SIFT.create()
+            start_time_new = time.time()
+            kp1, des1 = sift.detectAndCompute(image_bgr, None)
+            end_time_new = time.time()
+            framesSiftFeatures[imageFrame] = [kp1, des1]
+            print(f"Adding frame {imageFrame} to dictionary of SIFT features in {(end_time_new-start_time_new)*1000:.2f} ms")
+
+        if prevImageFrame in reversed(framesSiftFeatures):
+            kp2, des2 = framesSiftFeatures[prevImageFrame]
+
+        else:
+            kp2, des2 = sift.detectAndCompute(image_bgr_prev, None)
+            framesSiftFeatures[prevImageFrame] = [kp2, des2]
+            #rint(f"Adding frame {prevImageFrame} to dictionary of SIFT features")
+
+        sift_feats_end_time = time.time()
+
+        #print(f"SIFT feature detection took {(sift_feats_end_time-sift_feats_start_time)*1000:.2f} ms")
+
+        FLANN_INDEX_KDTREE = 0
+        index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+        search_params = dict(checks = 50)
+
+        sift_match_start_time = time.time()
+
+        flann = cv2.FlannBasedMatcher(index_params, search_params)
+
+        if (des1 is None or des2 is None):
+            # If detecting descriptors failed, return None as all parameters
+            return None, None, None
+
+        matches = flann.knnMatch(des1,des2,k=2)
+        #print(f"Number of matches: {len(matches)}")
+
+        # store all the good matches as per Lowe's ratio test.
+        good = []
+        for m,n in matches:
+            if m.distance < 0.7*n.distance:
+                good.append(m)
+
+        p1 = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+        p2 = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+
+        sift_match_end_time = time.time()
+
+        print(f"SIFT matching took {(sift_match_end_time-sift_match_start_time)*1000:.2f} ms")
+
+        F_matrix_start_time = time.time()
+
+        #E, mask = cv2.findEssentialMat(p1, p2, sbcf.K, cv2.RANSAC, 0.999, 1.0)
+        F, mask = cv2.findFundamentalMat(p1,p2, method=cv2.FM_RANSAC, ransacReprojThreshold=0.1)
+
+        F_matrix_end_time = time.time()
+
+        #print(f"Fundamental matrix computation took {(F_matrix_end_time-F_matrix_start_time)*1000:.2f} ms")
+
+        # findFundamentalMat sometimes returns three possible fundamental matrices. If this is the case, just take the first one (silently)
+        # See https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#findfundamentalmat
+        if F is not None:
+            F = F[0:3,0:3]
+
+        mask = np.array(np.squeeze(mask),dtype=bool)
+        p1 = np.squeeze(p1)
+        p2 = np.squeeze(p2)
+
+        masked_p1 = p1[mask,:]
+        masked_p2 = p2[mask,:]
+
+        changeInPxCoords = np.linalg.norm(masked_p2-masked_p1, axis=1)
+        
+        meanChangeInPxCoords = np.mean(changeInPxCoords)
+        stdDevOfChangeInPxCoords = np.std(changeInPxCoords)
+
+        return F, meanChangeInPxCoords, stdDevOfChangeInPxCoords
 
     def handleNewFrame(self, image, T, pose_noise_sigmas, frameName):
         # image: rgb image
@@ -147,7 +236,13 @@ class BlobTracker:
 
         self.log(f"Running algorithm with frame idx {self.latestKeyframeIndex}, total travel={self.totalTravel}")
 
+        ddc_start_time = time.time()
+
         keypoints, descriptors, sizes = self.ddc.detectAndDescribe(image)
+
+        ddc_end_time = time.time()
+
+        self.log(f"Feature detection and description took {(ddc_end_time-ddc_start_time)*1000:.2f} ms")
 
         self.detectionHistory[self.latestKeyframeIndex] = keypoints
         self.descriptorHistory[self.latestKeyframeIndex] = descriptors
@@ -156,9 +251,15 @@ class BlobTracker:
         self.log(f"At frame {self.latestKeyframeIndex}: Number of segments found: {len(keypoints)}")
 
         self.travelAtLatestKeyframe = self.totalTravel
+
+        findCorrespondences_start_time = time.time()
     
         # Find correspondences
         self.findCorrespondences(keypoints, descriptors, sizes)
+
+        findCorrespondences_end_time = time.time()
+
+        self.log(f"Finding correspondences took {(findCorrespondences_end_time-findCorrespondences_start_time)*1000:.2f} ms")
 
         self.T_prev = T
 
@@ -171,6 +272,8 @@ class BlobTracker:
         # include only track IDs visible in the set of frames that are included in the search window)
         tracksToMatch = []
         lastObservationsForTracks = []
+
+        gettingLatestFrameWhereDetected_start_time = time.time()
         
         for track in self.tracks:
             latestFrameWhereDetected = track.getLatestFrameWhereDetected()
@@ -178,6 +281,10 @@ class BlobTracker:
             if (latestFrameWhereDetected >= rangeStart):
                 tracksToMatch.append(track)
                 lastObservationsForTracks.append(latestFrameWhereDetected)
+
+        gettingLatestFrameWhereDetected_end_time = time.time()
+
+        self.log(f"Getting latest frame where detected took {(gettingLatestFrameWhereDetected_end_time-gettingLatestFrameWhereDetected_start_time)*1000:.2f} ms")
 
         # Go through every association of currently observed points and tracks we consider for matching.
         framesWithObservations = np.unique(lastObservationsForTracks)
@@ -189,11 +296,29 @@ class BlobTracker:
         similarityMatrix = None
         pixelDistanceMatrix = None
 
+        siftFundTime = 0
+        numFramesWithObservations = len(framesWithObservations)
+        print(f"Number of frames with observations: {numFramesWithObservations}")
+
         for frame_id in framesWithObservations:
             previousImage_bgr = cv2.cvtColor(self.keyframeImages[frame_id], cv2.COLOR_RGB2BGR)
+            prevImageFrame = frame_id
+            imageFrame = self.latestKeyframeIndex
+
+            #print(f"Comparing frame {prevImageFrame} to frame {imageFrame}")
+
+            siftFundStart = time.time()
 
             # Find fundamental matrix (TODO: replace with fundamental matrix computed from VIO poses and camera calibration matrix)
-            F, meanChangeInPxCoords, stdDevOfChangeInPxCoords = findFundamentalMatViaSiftPoints(previousImage_bgr, currentImage_bgr)
+            F, meanChangeInPxCoords, stdDevOfChangeInPxCoords = self.findFundamentalMatViaSiftPoints(previousImage_bgr, currentImage_bgr, imageFrame, prevImageFrame)
+
+            #print(f"F from SIFT: {F}")
+
+            siftFundEnd = time.time()
+
+            print(f"Finding fundamental matrix of {frame_id} took {(siftFundEnd-siftFundStart)*1000:.2f} ms")
+
+            siftFundTime += siftFundEnd-siftFundStart
 
             if (F is None):
                 break
@@ -269,6 +394,8 @@ class BlobTracker:
                         #else:
                         #    self.log(f"At frame {frame_id}, for point at pixel coordinates {newKeypoint}, track {track.getTrackId()} was considered infeasible (f_test_val={f_test_val:.3f}=")
 
+        self.log(f"Finding fund matrix took {siftFundTime*1000:.2f} ms")
+
         if (similarityMatrix is not None):
             h_simMat, w_simMat = similarityMatrix.shape
         else:
@@ -299,7 +426,7 @@ class BlobTracker:
             # For the features that had high maximum matching scores, find best assignments using the Hungarian algorithm.
             start_time = time.time()
             row_ind, col_ind = linear_sum_assignment(similarityMatrix_withMatchesToPreviousTracks, maximize=True)
-            print(f"Hungarian algorithm took {(time.time()-start_time)*1000:.2f} ms")
+            #print(f"Hungarian algorithm took {(time.time()-start_time)*1000:.2f} ms")
 
             # Based on output of Hungarian algorithm, add detections to existing tracks.
             for trackframeindex, ci in zip(row_ind, col_ind):
@@ -320,7 +447,7 @@ class BlobTracker:
 
                 if (score > self.matchingScoreLowerLimit and pxdist_scaled < 2.0): # todo: add pxdist_scaled as parameter to this class!
                     track.addDetection(self.latestKeyframeIndex, new_keypoints[newKeypointIdx], new_descriptors[newKeypointIdx], new_sizes[newKeypointIdx])
-                    self.log(f"Adding detection of existing track {track.getTrackId()} at keyframe {self.latestKeyframeIndex} at pixel coordinates {new_keypoints[newKeypointIdx]}, score={score:.3f}, pixel dist={pxdist_scaled:.2f}, pxdist_prob={pxdist_probability:.2f}")
+                    #self.log(f"Adding detection of existing track {track.getTrackId()} at keyframe {self.latestKeyframeIndex} at pixel coordinates {new_keypoints[newKeypointIdx]}, score={score:.3f}, pixel dist={pxdist_scaled:.2f}, pxdist_prob={pxdist_probability:.2f}")
                 else:
                     newKeypointIndices_filteredBasedOnScoreAfterHung.append(newKeypointIdx)
 
@@ -337,7 +464,7 @@ class BlobTracker:
                 self.numTracks += 1
                 ft = FeatureTrack(self.numTracks)
                 ft.addDetection(self.latestKeyframeIndex, new_keypoints[newKeypointIdx], new_descriptors[newKeypointIdx], new_sizes[newKeypointIdx])
-                self.log(f"Adding detection of new track {ft.getTrackId()} at keyframe {self.latestKeyframeIndex} at pixel coordinates {new_keypoints[newKeypointIdx]}")
+                #self.log(f"Adding detection of new track {ft.getTrackId()} at keyframe {self.latestKeyframeIndex} at pixel coordinates {new_keypoints[newKeypointIdx]}")
                 self.tracks.append(ft)
 
     def getFeatureTracks(self):
@@ -403,31 +530,77 @@ class BlobTracker:
     
     def getPoseNoiseHistory(self):
         return self.poseNoiseHistory
+    
+def findFundamentalMatViaPoses(T_prev, T):
+    # T_prev and T are 4x4 pose matrices in the same reference frame
+    # K is the camera calibration matrix
+    # The dimensions of K are 3x3
 
-def findFundamentalMatViaSiftPoints(image_bgr_prev, image_bgr):
-    sift = cv2.SIFT.create()
-    kp1, des1 = sift.detectAndCompute(image_bgr_prev,None)
-    kp2, des2 = sift.detectAndCompute(image_bgr,None)
-    FLANN_INDEX_KDTREE = 0
-    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-    search_params = dict(checks = 50)
+    #print("T:", T)
 
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
+    #print("T_prev:", T_prev)
+
+    # k matrix
+    K = np.array([[320, 0.0, 320],
+                  [0.0, 320, 240],
+                  [0.0, 0.0, 1.0]])
+    
+    # Extract rotation matrices and translation vectors
+    R1, t1 = T[:3, :3], T[:3, 3]
+    R2, t2 = T_prev[:3, :3], T_prev[:3, 3]
+
+    # Compute relative rotation and translation
+    R = R2 @ R1.T
+    t = t2 - R @ t1
+
+    # Skew-symmetric matrix of t
+    t_x = np.array([[0, -t[2], t[1]],
+                    [t[2], 0, -t[0]],
+                    [-t[1], t[0], 0]])
+
+    # Compute the essential matrix
+    E = t_x @ R
+
+    #print("E:", E)
+    # Compute essential matrix
+    #E = np.linalg.inv(T_prev) @ T
+
+    # Compute fundamental matrix
+    F = np.linalg.inv(K).T * np.mat(E) * np.linalg.inv(K)
+
+    changeInPxCoords = 0
+    stdDevOfChangeInPxCoords = 0
+
+    return F, changeInPxCoords, stdDevOfChangeInPxCoords
+    
+def findFundamentalMatViaORBPoints(image_bgr_prev, image_bgr):
+
+    orb = cv2.ORB_create()
+    kp1, des1 = orb.detectAndCompute(image_bgr_prev, None)
+    kp2, des2 = orb.detectAndCompute(image_bgr, None)
+    BFMatcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
     if (des1 is None or des2 is None):
         # If detecting descriptors failed, return None as all parameters
         return None, None, None
 
-    matches = flann.knnMatch(des1,des2,k=2)
+    # Match descriptors
+    try:
+        matches = BFMatcher.knnMatch(des1, des2, k=2)
+    except:
+        matches = []
 
     # store all the good matches as per Lowe's ratio test.
     good = []
-    for m,n in matches:
-        if m.distance < 0.7*n.distance:
-            good.append(m)
+    try:
+        for m, n in matches:
+            if m.distance < 0.7 * n.distance:
+                good.append(m)
+    except:
+        print("No matches found")
 
     p1 = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
-    p2 = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+    p2 = np.float32([ kp2[n.trainIdx].pt for n in good ]).reshape(-1,1,2)
 
     #E, mask = cv2.findEssentialMat(p1, p2, sbcf.K, cv2.RANSAC, 0.999, 1.0)
     F, mask = cv2.findFundamentalMat(p1,p2, method=cv2.FM_RANSAC, ransacReprojThreshold=0.1)
@@ -450,3 +623,4 @@ def findFundamentalMatViaSiftPoints(image_bgr_prev, image_bgr):
     stdDevOfChangeInPxCoords = np.std(changeInPxCoords)
 
     return F, meanChangeInPxCoords, stdDevOfChangeInPxCoords
+

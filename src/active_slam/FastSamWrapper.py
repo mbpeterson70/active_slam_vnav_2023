@@ -13,7 +13,7 @@ class FastSamWrapper(SamModel):
         self.imgsz = imgsz
     
     def segmentFrame(self, image):
-        everything_results = self.fastSamModel(image, device=self.device, retina_masks=True, imgsz=self.imgsz, conf=self.conf, iou=self.iou,)
+        everything_results = self.fastSamModel(image, device=self.device, retina_masks=True, imgsz=256, conf=self.conf, iou=self.iou,)
         prompt_process = FastSAMPrompt(image, everything_results, device=self.device)
         segmask = prompt_process.everything_prompt()
 

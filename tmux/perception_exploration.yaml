@@ -1,9 +1,11 @@
 session_name: perception_exploration
 
 environment:
-  AIRSIM_BIN_PATH: "/home/masonbp/tools/AirSim/environments/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
-  ACTIVE_SLAM_VENV: "/home/masonbp/.envs/active_slam/"
-  ACTIV_SLAM_WS: "/home/masonbp/ws/active_slam_ws"
+  #AIRSIM_BIN_PATH: "/home/masonbp/tools/AirSim/environments/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
+  #ACTIVE_SLAM_VENV: "/home/masonbp/.envs/active_slam/"
+  #ACTIV_SLAM_WS: "/home/masonbp/ws/active_slam_ws"
+  AIRSIM_BIN_PATH: "/home/jtorde/Research/active_slam_ws/src/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
+  # ACTIVE_SLAM_VENV: "/home/jtorde/Research/active_slam_ws/src/active_slam"
 
 options:
   default-command: /bin/bash
@@ -17,6 +19,7 @@ windows:
   panes:
     - roscore
     - $AIRSIM_BIN_PATH -RenderOffScreen #-ResX=640 -ResY=480 -windowed
+    # - $AIRSIM_BIN_PATH -ResX=640 -ResY=480 -windowed
     - sleep 5; roslaunch airsim_ros_pkgs airsim_node.launch
     - sleep 5; roslaunch active_slam planner_ros_node.launch exploration_velocity:=1.0
     - sleep 5; rviz -d $ACTIV_SLAM_WS/src/active_slam_vnav_2023/rviz/active_slam.rviz
@@ -38,3 +41,5 @@ windows:
     #   /factor_graph /optimized_path /log_det_information /optimized_objects -o ~/results/active_slam/mapviz/
     # - sleep 5; rostopic echo /airsim_node/Multirotor/odom_local_ned
     # - sleep 5; rosbag record /annotated_image /factor_graph -o ~/results/active_slam/fixslam/01/
+    - sleep 5; rosbag record -o test /airsim_node/Multirotor/front_center_custom/Scene /airsim_node/Multirotor/odom_local_ned /log_det_last_pose_covariance /log_det_reduced_Laplacian_matrix /rosout /rosout_agg /tf /tf_static
+    # - sleep 5; rosbag record /annotated_image -o ~/results/active_slam/segment_slam/00
