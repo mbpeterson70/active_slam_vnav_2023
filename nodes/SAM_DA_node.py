@@ -40,9 +40,9 @@ class SAM_DA_node:
         
         # ros subscribers
         subs = [
-            message_filters.Subscriber("airsim_node/Multirotor/odom_local_ned", nav_msgs.Odometry),
+            message_filters.Subscriber("airsim_node/Multirotor/odom_local_ned", nav_msgs.Odometry, queue_size=100),
             message_filters.Subscriber("airsim_node/Multirotor/front_center_custom/Scene",
-                                       sensor_msgs.Image),
+                                       sensor_msgs.Image, queue_size=1),
             # message_filters.Subscriber("/airsim_node/Multirotor/front_center_custom/Scene/camera_info", 
             #                            sensor_msgs.CameraInfo),
         ]
