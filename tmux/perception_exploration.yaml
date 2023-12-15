@@ -41,5 +41,5 @@ windows:
     #   /factor_graph /optimized_path /log_det_information /optimized_objects -o ~/results/active_slam/mapviz/
     # - sleep 5; rostopic echo /airsim_node/Multirotor/odom_local_ned
     # - sleep 5; rosbag record /annotated_image /factor_graph -o ~/results/active_slam/fixslam/01/
-    - sleep 5; rosbag record -o test /airsim_node/Multirotor/front_center_custom/Scene /airsim_node/Multirotor/odom_local_ned /log_det_last_pose_covariance /log_det_reduced_Laplacian_matrix /rosout /rosout_agg /tf /tf_static
+    # - sleep 5; rosbag record -o test /airsim_node/Multirotor/front_center_custom/Scene /airsim_node/Multirotor/odom_local_ned /log_det_last_pose_covariance /log_det_reduced_Laplacian_matrix /rosout /rosout_agg /tf /tf_static
     # - sleep 5; rosbag record /annotated_image -o ~/results/active_slam/segment_slam/00
