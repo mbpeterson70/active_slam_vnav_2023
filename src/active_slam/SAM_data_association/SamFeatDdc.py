@@ -1,7 +1,7 @@
 from active_slam.BlobTracker import FeatureDetectorDescriptorAndComparer
-from active_slam.SamModel import SamModel
-from active_slam.utils import blobTouchesBorder, compute_blob_mean_and_covariance, covSize, plotErrorEllipse
-from active_slam.AssociationWeighting import weightAssociation
+from active_slam.SAM_data_association.SamModel import SamModel
+from active_slam.SAM_data_association.utils import blobTouchesBorder, compute_blob_mean_and_covariance, covSize, plotErrorEllipse
+from active_slam.SAM_data_association.AssociationWeighting import weightAssociation
 import numpy as np
 from PIL import Image
 import cv2

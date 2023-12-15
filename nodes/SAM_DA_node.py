@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import rospy
-from active_slam.blob_SAM_node import BlobSAMNode
+from active_slam.SAM_data_association.blob_SAM_node import BlobSAMNode
 import numpy as np
 
 # ROS imports
@@ -18,11 +18,11 @@ import std_msgs.msg as std_msgs
 # import rotation for pose stuff
 from scipy.spatial.transform import Rotation as Rot
 
-from active_slam.BlobTrackerRT import BlobTracker
-from active_slam.SamDetectorDescriptorAndSizeComparer import SamDetectorDescriptorAndSizeComparer
-from active_slam.SamFeatDdc import SamFeatDdc
-from active_slam.FastSamWrapper import FastSamWrapper
-from active_slam.utils import readConfig, getLogger, plotErrorEllipse
+from active_slam.SAM_data_association.BlobTrackerRT import BlobTracker
+from active_slam.SAM_data_association.SamDetectorDescriptorAndSizeComparer import SamDetectorDescriptorAndSizeComparer
+from active_slam.SAM_data_association.SamFeatDdc import SamFeatDdc
+from active_slam.SAM_data_association.FastSamWrapper import FastSamWrapper
+from active_slam.SAM_data_association.utils import readConfig, getLogger, plotErrorEllipse
 
 from utils import T_2_pose_msg, pose_msg_2_T
 

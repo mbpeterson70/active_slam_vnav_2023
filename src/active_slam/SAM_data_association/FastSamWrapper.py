@@ -1,7 +1,7 @@
 # This file contains a wrapper for FastSam that implements the interface specified in SamModel.py
 # FastSAM: Zhao, Xu, et al. "Fast Segment Anything." arXiv preprint arXiv:2306.12156 (2023).
 
-from active_slam.SamModel import SamModel
+from active_slam.SAM_data_association.SamModel import SamModel
 from active_slam.FastSAM.fastsam import *
 
 class FastSamWrapper(SamModel):
