@@ -1,7 +1,7 @@
 # Active SLAM VNAV 2023
 
-<a target="_blank" href=""><img src="./images/success.gif" width="220" height="200" alt="successful loop closure"></a>
-<a target="_blank" href=""><img src="./images/active_slam_mapping.gif" width="220" height="200" alt="mapping"></a>
+<a target="_blank" href=""><img src="./images/success.gif" width="330" height="300" alt="successful loop closure"></a>
+<a target="_blank" href=""><img src="./images/active_slam_mapping.gif" width="300" height="300" alt="mapping"></a>
 
 # Installation
 
