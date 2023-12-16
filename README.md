@@ -1,21 +1,23 @@
-# Installation
+# Active SLAM VNAV 2023
 
 <a target="_blank" href=""><img src="./images/success.gif" width="220" height="200" alt="successful loop closure"></a>
+<a target="_blank" href=""><img src="./images/active_slam_mapping.gif" width="220" height="200" alt="mapping"></a>
+
+# Installation
 
 ### AirSim
 
-1. Create file `~/Documents/AirSim/settings.json` (example below)
-2. Download environment binary (Linux): [https://github.com/Microsoft/AirSim/releases](https://github.com/Microsoft/AirSim/releases)
+
+1. Download environment binary (Linux): [https://github.com/Microsoft/AirSim/releases](https://github.com/Microsoft/AirSim/releases)
    1. After, unzip
 (change this for different environments) Run: ``./AbandonedPark/LinuxNoEditor/AbandonedPark/Binaries/Linux/AbandonedPark -ResX=640 -ResY=480 -windowed``
-3. Install ROS wrapper: [https://microsoft.github.io/AirSim/airsim_ros_pkgs/](https://microsoft.github.io/AirSim/airsim_ros_pkgs/)
-   1. Once the sim is running, and ros environment is sourced (setup.bash)
-   2. `roslaunch airsim_ros_pkgs airsim_node.launch `
-   3. `roslaunch airsim_ros_pkgs rviz.launch`
+1. Install ROS wrapper: [https://microsoft.github.io/AirSim/airsim_ros_pkgs/](https://microsoft.github.io/AirSim/airsim_ros_pkgs/)
 
 ### FastSAM Perception Frontend
 
-TODO
+Follow the instructions for installing FastSAM [here](https://github.com/CASIA-IVA-Lab/FastSAM). Make sure that FastSAM is on your python path! (You can run the below to do that)
+
+export PYTHONPATH="$PYTHONPATH:<directory to your FastSAM install>
 
 ### `active_slam` Python Package
 
@@ -40,11 +42,20 @@ to setup the AirSim settings.
 # Running the full system
 
 Open up `tmux/perception_exploration.yaml`.
-In the top of the file are a few environment parameters that you should modify (alternatively, you can enter these in the commandline but tbh it should be easier to just edit them once in the file).
+In the top of the file are a few environment parameters that you should modify to fit your environment. Alternatively you can just set those before running the tmux script (second option below)
 
-Run:
+Option 1:
 
 ```
+tmuxp load ./tmux/perception_exploration.yaml 
+```
+
+Option 2:
+
+```
+AIRSIM_BIN_PATH=<path to AirSim binary> \
+ACTIVE_SLAM_VENV=<path to root python virtual environment> \
+ACTIVE_SLAM_WS=<path to ROS workspace> \
 tmuxp load ./tmux/perception_exploration.yaml 
 ```
 
@@ -54,7 +65,7 @@ You can visualize by opening up rviz:
 rviz -d ./rviz/active_slam.rviz
 ```
 
-# Running Kota's active planner
+# Running Active Planner Alone
 
 1. start rosmaster (``roscore``)
 2. start AirSim env of your choice (``./AbandonedPark/LinuxNoEditor/AbandonedPark/Binaries/Linux/AbandonedPark -ResX=640 -ResY=480 -windowed``)

@@ -1,11 +1,9 @@
 session_name: perception_exploration
 
 environment:
-  #AIRSIM_BIN_PATH: "/home/masonbp/tools/AirSim/environments/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
-  #ACTIVE_SLAM_VENV: "/home/masonbp/.envs/active_slam/"
-  #ACTIV_SLAM_WS: "/home/masonbp/ws/active_slam_ws"
-  AIRSIM_BIN_PATH: "/home/jtorde/Research/active_slam_ws/src/AirSimNH/LinuxNoEditor/AirSimNH/Binaries/Linux/AirSimNH"
-  # ACTIVE_SLAM_VENV: "/home/jtorde/Research/active_slam_ws/src/active_slam"
+  # AIRSIM_BIN_PATH: <put here the path to your airsim binary>
+  # ACTIVE_SLAM_VENV: <put here the path to your python environment>
+  # ACTIVE_SLAM_WS: <put here the path to your ros workspace>
 
 options:
   default-command: /bin/bash
@@ -22,7 +20,7 @@ windows:
     # - $AIRSIM_BIN_PATH -ResX=640 -ResY=480 -windowed
     - sleep 5; roslaunch airsim_ros_pkgs airsim_node.launch
     - sleep 5; roslaunch active_slam planner_ros_node.launch exploration_velocity:=1.0
-    - sleep 5; rviz -d $ACTIV_SLAM_WS/src/active_slam_vnav_2023/rviz/active_slam.rviz
+    - sleep 5; rviz -d $ACTIVE_SLAM_WS/src/active_slam_vnav_2023/rviz/active_slam.rviz
 
 - window_name: perception
   layout: main-vertical

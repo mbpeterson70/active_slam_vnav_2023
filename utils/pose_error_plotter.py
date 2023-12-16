@@ -2,6 +2,7 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial.transform import Rotation as Rot
+import plot_utils
 
 from robot_utils.robot_data.pose_data import PoseData
 
@@ -38,24 +39,28 @@ for t in times:
 optimized_err = np.array(optimized_err)
 odom_err = np.array(odom_err)
 
-fig, ax = plt.subplots(2,1, figsize=(6,4))
+fig, ax = plt.subplots(2,1, figsize=(6,3))
 
 for i in range(2):
-    ax[i].plot(times - times[0], optimized_err[:,i], color='maroon')
     ax[i].plot(times - times[0], odom_err[:,i], color='blue')
+    ax[i].plot(times - times[0], optimized_err[:,i], color='maroon')
     ax[i].grid(True)
 
 # ax[1].plot(times, np.rad2deg(optimized_err[:,1]), color='maroon')
 # ax[1].plot(times, np.rad2deg(odom_err[:,1]), color='blue')
 
 ax[1].set_xlabel("time(s)")
-ax[0].set_ylabel("translation error (m)")
-ax[1].set_ylabel("rotation error (deg)")
-ax[0].legend(["Optimized pose", "Raw odometry"])
+ax[0].set_ylabel("trans. error (m)")
+ax[1].set_ylabel("rot. error (deg)")
+ax[0].legend(["Raw odometry", "Optimized pose"])
+plot_utils.remove_ticks(ax[0], x=True, y=False)
 
 
     
 
 fig.set_dpi(300)
+fig.subplots_adjust(hspace=0.08)
+fig.subplots_adjust(bottom=0.15)
+fig.subplots_adjust(top=0.98)
 # plt.show()
 plt.savefig("tmp.png", dpi=300)
