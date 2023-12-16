@@ -1,15 +1,15 @@
-from active_slam.FastSAM.fastsam import *
+from FastSAM.fastsam import *
 import cv2
 import os
 import shutil
-from active_slam.utils import compute_blob_mean_and_covariance
+from utils import compute_blob_mean_and_covariance
 import numpy as np
 import matplotlib.pyplot as plt
-from active_slam.utils import plotErrorEllipse
+from utils import plotErrorEllipse
 import skimage
 
 # Specify path to checkpoint. (If checkpoint does not exist, the implementation in FastSAM repo downloads it.)
-fastSamModel = FastSAM('./FastSAM/Models/FastSAM-x.pt')
+semFastSamModel = FastSAM('./Semantic-Fast-SAM/Models/FastSAM.pt')
 DEVICE = 'cuda'
 
 # Specify confidence and IoU parameters (see FastSAM paper or rather YOLO v8 documentation)
@@ -83,7 +83,7 @@ for filename in files:
             image_gray_rgb = np.stack((image_gray,)*3, axis=-1)
 
             # Run FastSAM
-            everything_results = fastSamModel(image, device=DEVICE, retina_masks=True, imgsz=1024, conf=conf, iou=iou,)
+            everything_results = semFastSamModel(image, device=DEVICE, retina_masks=True, imgsz=1024, conf=conf, iou=iou,)
             prompt_process = FastSAMPrompt(image, everything_results, device=DEVICE)
             segmask = prompt_process.everything_prompt()
 

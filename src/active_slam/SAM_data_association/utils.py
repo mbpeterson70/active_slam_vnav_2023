@@ -5,7 +5,7 @@ import time
 import os
 import logging
 import sys
-from active_slam.Open3dVisualizer import Open3dVisualizer
+from active_slam.SAM_data_association.Open3dVisualizer import Open3dVisualizer
 
 def readConfig(pathToConfigFile):
     with open(pathToConfigFile, "r") as ymlfile:

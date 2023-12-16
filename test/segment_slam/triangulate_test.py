@@ -5,7 +5,7 @@ import gtsam.utils.plot as gtsam_plot
 import matplotlib.pyplot as plt
 
 from active_slam.segment_slam.segment_slam import SegmentSLAM
-from active_slam.utils import transfFromRotAndTransl
+from active_slam.SAM_data_association.utils import transfFromRotAndTransl
 
 K = np.array([
     [500., 0., 250.,],
