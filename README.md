@@ -1,6 +1,6 @@
 # Installation
 
-<a target="_blank" href=""><img src="./images/success.gif" width="400" height="221" alt="successful loop closure"></a>
+<a target="_blank" href=""><img src="./images/success.gif" width="220" height="200" alt="successful loop closure"></a>
 
 ### AirSim
 
