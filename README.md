@@ -1,5 +1,7 @@
 # Installation
 
+<a target="_blank" href=""><img src="./images/success.gif" width="400" height="221" alt="successful loop closure"></a>
+
 ### AirSim
 
 1. Create file `~/Documents/AirSim/settings.json` (example below)
@@ -52,7 +54,7 @@ You can visualize by opening up rviz:
 rviz -d ./rviz/active_slam.rviz
 ```
 
-# Running Kota's stuff alone
+# Running Kota's active planner
 
 1. start rosmaster (``roscore``)
 2. start AirSim env of your choice (``./AbandonedPark/LinuxNoEditor/AbandonedPark/Binaries/Linux/AbandonedPark -ResX=640 -ResY=480 -windowed``)
