@@ -5,7 +5,7 @@
 	<arg name="coverage_area_size" default="100.0" />
 	<arg name="exploration_goal_points_resolution" default="25.0" />
 	<arg name="exploration_velocity" default="5.0" />
-	<arg name="covariance_threshold" default="-8.0" />
+	<arg name="covariance_threshold" default="-12.0" />
 	<arg name="data_path" default="/home/jtorde/data" />
 
 	<node name="planner_ros_node" pkg="active_slam" type="planner_ros_node" output="screen" >

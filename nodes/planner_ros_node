@@ -16,6 +16,7 @@ import threading
 from active_slam.grid_sweeping import planning
 import active_slam.msg as active_slam_msgs
 import std_msgs.msg as std_msgs
+import geometry_msgs.msg as geometry_msgs
 
 class Planner:
     
@@ -45,6 +46,9 @@ class Planner:
 
         # store robot's ground truth pose
         self.robot_gt_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ,1.0]
+
+        # store history of robot ground truth poses and time stamps
+        self.robot_gt_pose_history = {'poses': [], 'time_stamps': []}
 
         # store robot's pose
         self.robot_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0 , 1.0]
@@ -91,10 +95,16 @@ class Planner:
         self.last_pose_covariance = None
 
         # subscriber for optimized_path
-        self.sub_optimized_path = rospy.Subscriber('optimized_path', Path, self.optimized_path_cb)
+        # self.sub_optimized_path = rospy.Subscriber('optimized_path', Path, self.optimized_path_cb)
+
+        # subscriber for optimized_pose
+        self.sub_optimized_pose = rospy.Subscriber('optimized_pose', geometry_msgs.PoseStamped, self.optimized_pose_cb)
 
         # store optimized path
-        self.optimized_path = None
+        # self.optimized_path = None
+
+        # store optimized pose
+        self.optimized_pose = None
 
         # flag for the first goal reached 
         self.is_first_goal_reached = False
@@ -150,20 +160,47 @@ class Planner:
         self.log_det_last_pose_covariance_pub = rospy.Publisher('/log_det_last_pose_covariance', std_msgs.Float64, queue_size=1)
 
     # callback function for the topic /optimized_path
-    def optimized_path_cb(self, msg):
+    # def optimized_path_cb(self, msg):
+
+    #     # update the optimized path
+    #     self.optimized_path = msg.poses
+
+    #     # get the tranformation matrix T^{GT}_B
+    #     T_GT_B = np.eye(4)
+    #     T_GT_B[:3, :3] = Rot.from_quat([self.robot_gt_pose[3], self.robot_gt_pose[4], self.robot_gt_pose[5], self.robot_gt_pose[6]]).as_matrix()
+    #     T_GT_B[:3, 3] = np.array([self.robot_gt_pose[0], self.robot_gt_pose[1], self.robot_gt_pose[2]])
+
+    #     # get the transformation matrix T^{O}_B
+    #     T_O_B = np.eye(4)
+    #     T_O_B[:3, :3] = Rot.from_quat([self.optimized_path[-1].pose.orientation.x, self.optimized_path[-1].pose.orientation.y, self.optimized_path[-1].pose.orientation.z, self.optimized_path[-1].pose.orientation.w]).as_matrix()
+    #     T_O_B[:3, 3] = np.array([self.optimized_path[-1].pose.position.x, self.optimized_path[-1].pose.position.y, self.optimized_path[-1].pose.position.z])
+
+    #     # get the transformation matrix T^(GT)_O
+    #     self.T_GT_O = T_GT_B @ np.linalg.inv(T_O_B)
+
+    def optimized_pose_cb(self, msg):
 
         # update the optimized path
-        self.optimized_path = msg.poses
+        self.optimized_pose = msg.pose
+
+        # need to time synchronize the optimized pose and the robot's ground truth pose
+        # choose the optimized pose that is closest to the robot's ground truth pose
+        for idx in range(len(self.robot_gt_pose_history['time_stamps'])):
+            if self.robot_gt_pose_history['time_stamps'][idx] > msg.header.stamp.to_sec():
+                break
+        idx = idx - 1
+
+        synced_robot_gt_pose = self.robot_gt_pose_history['poses'][idx]
 
         # get the tranformation matrix T^{GT}_B
         T_GT_B = np.eye(4)
-        T_GT_B[:3, :3] = Rot.from_quat([self.robot_gt_pose[3], self.robot_gt_pose[4], self.robot_gt_pose[5], self.robot_gt_pose[6]]).as_matrix()
-        T_GT_B[:3, 3] = np.array([self.robot_gt_pose[0], self.robot_gt_pose[1], self.robot_gt_pose[2]])
+        T_GT_B[:3, :3] = Rot.from_quat([synced_robot_gt_pose[3], synced_robot_gt_pose[4], synced_robot_gt_pose[5], synced_robot_gt_pose[6]]).as_matrix()
+        T_GT_B[:3, 3] = np.array([synced_robot_gt_pose[0], synced_robot_gt_pose[1], synced_robot_gt_pose[2]])
 
         # get the transformation matrix T^{O}_B
         T_O_B = np.eye(4)
-        T_O_B[:3, :3] = Rot.from_quat([self.optimized_path[-1].pose.orientation.x, self.optimized_path[-1].pose.orientation.y, self.optimized_path[-1].pose.orientation.z, self.optimized_path[-1].pose.orientation.w]).as_matrix()
-        T_O_B[:3, 3] = np.array([self.optimized_path[-1].pose.position.x, self.optimized_path[-1].pose.position.y, self.optimized_path[-1].pose.position.z])
+        T_O_B[:3, :3] = Rot.from_quat([self.optimized_pose.orientation.x, self.optimized_pose.orientation.y, self.optimized_pose.orientation.z, self.optimized_pose.orientation.w]).as_matrix()
+        T_O_B[:3, 3] = np.array([self.optimized_pose.position.x, self.optimized_pose.position.y, self.optimized_pose.position.z])
 
         # get the transformation matrix T^(GT)_O
         self.T_GT_O = T_GT_B @ np.linalg.inv(T_O_B)
@@ -191,6 +228,9 @@ class Planner:
             # if there is a node to visit to reduce the log determinant of the reduced Laplacian matrix
             if best_node_to_visit is not None:
     
+                # shutdown the check_reduced_Laplacian_matrix timer
+                self.is_node_revisit_activated = True
+
                 # get the pose of the best node to visit
                 best_node_to_visit_pose = self.pose_nodes_poses[best_node_to_visit]
 
@@ -200,8 +240,6 @@ class Planner:
                 # update the goal_idx (we need to make sure the agent will visit the current goal after visiting the best node to visit)
                 self.goal_idx = self.goal_idx - 1
 
-                # shutdown the check_reduced_Laplacian_matrix timer
-                self.is_node_revisit_activated = True
                 self.record_goal_idx = self.goal_idx
                 self.timer_for_checking_reduced_Laplacian_matrix.shutdown()
 
@@ -364,6 +402,14 @@ class Planner:
         # else:
         self.robot_pose = self.robot_gt_pose.copy()
 
+        # append the pose to the history and update the time stamp
+        self.robot_gt_pose_history['poses'].append(self.robot_gt_pose.copy())
+        self.robot_gt_pose_history['time_stamps'].append(msg.header.stamp.to_sec())
+
+        if len(self.robot_gt_pose_history) > 10000:
+            self.robot_gt_pose_history['poses'].pop(0)
+            self.robot_gt_pose_history['time_stamps'].pop(0)
+
         # update the robot's pose
         if self.goal_idx != 0:
             self.grid_mapper.update_robot_gt_pose(self.robot_gt_pose.copy())
@@ -418,9 +464,11 @@ class Planner:
         vel = self.exploration_velocity if self.is_first_goal_reached else 10.0 # use faster velocity to get to the first goal point
 
         # get goal pose in Ground Truth (NED) frame
-        if self.optimized_path is not None:
+        if self.optimized_pose is not None:
             self.goal_pose_before_corruption = self.goal_pose.copy()
-            self.goal_pose = self.transform_pose_from_SLAM_odometry_frame_to_Ground_Truth_NED_frame()
+
+            if not self.is_node_revisit_activated:
+                self.goal_pose = self.transform_pose_from_SLAM_odometry_frame_to_Ground_Truth_NED_frame()
 
         # TODO: there's no collision avoidance here
         self.drone_client_lock.acquire()
@@ -485,11 +533,11 @@ class Planner:
             print("goal_idx: ", self.goal_idx)
 
             # if the node revisit is activated and goal has been reached, then we restart the check_reduced_Laplacian_matrix timer
-            if self.goal_idx - self.last_goal_idx_when_node_revisit_activated > 5:
+            if self.goal_idx - self.record_goal_idx > 10:
                 if self.is_node_revisit_activated:
                     self.timer_for_checking_reduced_Laplacian_matrix = rospy.Timer(rospy.Duration(1.0), self.check_reduced_Laplacian_matrix_cb)
                     self.is_node_revisit_activated = False
-                    self.last_goal_idx_when_node_revisit_activated = self.goal_idx
+                    
     
     # function to get the best factor graph node to visit
     def get_best_factor_graph_node_to_visit(self):
